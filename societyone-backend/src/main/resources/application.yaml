@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: societyone-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/societyone
+    username: postgres
+    password: Satya2003@
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+server:
+  port: 8082
+
+societyone:
+  security:
+    jwt:
+      secret: KrHYbZiErgOZGL3TStmT/lSpso1dWffBoH94bZw615s=
+      expiration-ms: ${JWT_EXPIRATION_MS:86400000}
