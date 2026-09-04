@@ -1,6 +1,9 @@
 spring:
   application:
     name: societyone-backend
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
   datasource:
     url: jdbc:postgresql://localhost:5432/societyone
@@ -15,7 +18,7 @@ spring:
     enabled: true
 
 server:
-  port: 8082
+  port: 8081
 
 societyone:
   security:

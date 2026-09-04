@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2, Mail, ShieldPlus } from "lucide-react";
 import { AuthLayout } from "@/components/auth/authlayout";
 import { AuthMethodToggle, type AuthMethod } from "@/components/auth/authmethodtoggle";
 import { AuthFormError } from "@/components/auth/authformError";
@@ -41,6 +41,26 @@ function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
+
+  // ---- First-admin setup banner ----
+  // Show the "bootstrap the society" CTA only when the backend reports ZERO admins.
+  // After first admin is created, this banner disappears permanently until DB reset.
+  const [setupAvailable, setSetupAvailable] = useState<boolean | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    authService
+      .getSetupStatus()
+      .then((s) => {
+        if (mounted) setSetupAvailable(s.available);
+      })
+      .catch(() => {
+        // Backend unreachable — don't show confusing banner.
+        if (mounted) setSetupAvailable(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const identifier = useMemo(() => {
     if (method === "email") return email.trim();
@@ -105,6 +125,28 @@ function LoginPage() {
       title="Log in to SocietyOne"
       subtitle="Use your email or mobile number to continue to your workspace."
     >
+      {setupAvailable && (
+        <Link
+          to="/setup-admin"
+          className="mb-6 flex items-start gap-3 rounded-xl border border-brand-blue/30 bg-info-soft px-4 py-3.5 text-left transition hover:border-brand-blue/60 hover:bg-brand-blue/10"
+        >
+          <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-brand-blue text-white shadow-sm">
+            <ShieldPlus className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-foreground">
+              First time setting up SocietyOne?
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+              No administrator exists yet. Create the first admin account to bootstrap your society.
+            </p>
+            <span className="mt-2 inline-flex items-center text-xs font-semibold text-brand-blue">
+              Set up admin →
+            </span>
+          </div>
+        </Link>
+      )}
+
       <form className="space-y-5" onSubmit={onSubmit}>
         <AuthFormError message={error} />
         <AuthMethodToggle value={method} onChange={setMethod} />

@@ -41,22 +41,34 @@ export interface User {
   lastLoginAt?: string;
 }
 
+export type StructureStatus = "ACTIVE" | "INACTIVE";
+
 export interface Society {
   id: string;
   name: string;
   address: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  status?: StructureStatus;
+  createdAt?: string;
+  updatedAt?: string;
   buildings: Building[];
 }
 
 export interface Building {
   id: string;
   name: string;
+  status?: StructureStatus;
   floors: Floor[];
 }
 
 export interface Floor {
   id: string;
   number: number;
+  status?: StructureStatus;
   flats: Flat[];
 }
 
@@ -65,6 +77,7 @@ export interface Flat {
   number: string;
   buildingId: string;
   floorId: string;
+  status?: StructureStatus;
   residentIds: string[];
 }
 

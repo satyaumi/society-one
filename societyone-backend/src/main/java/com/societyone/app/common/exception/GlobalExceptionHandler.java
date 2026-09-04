@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -25,6 +26,9 @@ public class GlobalExceptionHandler {
      * username is blank
      * password is too short
      */
+    private static final java.util.Set<String> PASSWORD_FIELDS =
+            java.util.Set.of("password", "newPassword", "confirmPassword");
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidationException(
             MethodArgumentNotValidException exception
@@ -40,12 +44,32 @@ public class GlobalExceptionHandler {
                 ))
                 .toList();
 
+        boolean hasPasswordError = details.stream()
+                .map(ApiErrorDetail::field)
+                .anyMatch(PASSWORD_FIELDS::contains);
+
+        String code = hasPasswordError ? "PASSWORD_TOO_WEAK" : "VALIDATION_ERROR";
+        String message = hasPasswordError
+                ? "Password does not meet requirements"
+                : "Request validation failed";
+
         ApiResponse<Void> response = ApiResponse.failure(
-                "VALIDATION_ERROR",
-                "Request validation failed",
+                code,
+                message,
                 details
         );
 
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(response);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch() {
+        ApiResponse<Void> response = ApiResponse.failure(
+                "BAD_REQUEST",
+                "The requested resource id is invalid"
+        );
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(response);
@@ -63,20 +87,45 @@ public class GlobalExceptionHandler {
                 exception.getStatusCode().value()
         );
 
+        String reason = exception.getReason() != null
+                ? exception.getReason()
+                : status.getReasonPhrase();
+
         String code = switch (status) {
-            case BAD_REQUEST -> "BAD_REQUEST";
-            case UNAUTHORIZED -> "UNAUTHORIZED";
+            case BAD_REQUEST -> switch (reason) {
+                case "Authentication method must be email or mobile" -> "BAD_REQUEST";
+                case "Password does not meet requirements" -> "PASSWORD_TOO_WEAK";
+                case "At least one of email or mobile number is required" -> "VALIDATION_ERROR";
+                case "Invalid OTP" -> "OTP_INVALID";
+                case "OTP expired" -> "OTP_EXPIRED";
+                case "OTP has already been used" -> "OTP_INVALID";
+                default -> "BAD_REQUEST";
+            };
+            case UNAUTHORIZED -> {
+                if ("Invalid credentials".equals(reason)) {
+                    yield "INVALID_CREDENTIALS";
+                }
+                yield "UNAUTHORIZED";
+            }
             case FORBIDDEN -> "FORBIDDEN";
             case NOT_FOUND -> "NOT_FOUND";
-            case CONFLICT -> "CONFLICT";
+            case CONFLICT -> switch (reason) {
+                case "Username is already registered" -> "USERNAME_ALREADY_TAKEN";
+                case "Email is already registered" -> "EMAIL_ALREADY_REGISTERED";
+                case "Mobile number is already registered" -> "MOBILE_ALREADY_REGISTERED";
+                case "This admin already has a society" -> "SOCIETY_ALREADY_EXISTS";
+                case "A society with this name already exists" -> "DUPLICATE_SOCIETY_NAME";
+                case "A building with this name already exists in the society" -> "DUPLICATE_BUILDING";
+                case "This floor already exists in the building" -> "DUPLICATE_FLOOR";
+                case "A flat with this number already exists in the building" -> "DUPLICATE_FLAT";
+                default -> "CONFLICT";
+            };
             default -> "REQUEST_ERROR";
         };
 
         ApiResponse<Void> response = ApiResponse.failure(
                 code,
-                exception.getReason() != null
-                        ? exception.getReason()
-                        : status.getReasonPhrase()
+                reason
         );
 
         return ResponseEntity

@@ -1,14 +1,18 @@
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2, ClipboardCheck, FileClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AppShell,
   ComingSoon,
+  LoadingState,
   PageIntro,
   SectionHeading,
   StatGrid,
 } from "@/components/societyone";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { authService, societyService } from "@/services";
+import type { DashboardSummary } from "@/types/domain";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: requireAuth,
@@ -22,6 +26,28 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminIndexPage() {
+  const [stats, setStats] = useState<DashboardSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    authService
+      .getCurrentUser()
+      .then((user) => societyService.getSummary(user.role))
+      .then((summary) => {
+        if (mounted) {
+          setStats(summary);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <AppShell title="Admin workspace" eyebrow="Admin">
       <PageIntro
@@ -37,14 +63,11 @@ function AdminIndexPage() {
         }
       />
       <div className="mt-7">
-        <StatGrid
-          stats={[
-            { label: "Total flats", value: "184", helper: "Across 3 towers", tone: "blue" },
-            { label: "Active residents", value: "412", helper: "98% verified", tone: "green" },
-            { label: "Visitors today", value: "18", helper: "6 online requests", tone: "orange" },
-            { label: "Security users", value: "12", helper: "2 on duty now", tone: "slate" },
-          ]}
-        />
+        {loading ? (
+          <LoadingState label="Loading society summary..." />
+        ) : (
+          <StatGrid stats={stats} />
+        )}
       </div>
       <div className="mt-8 grid gap-6 xl:grid-cols-3">
         <section className="rounded-xl border border-border bg-card p-5 shadow-sm">

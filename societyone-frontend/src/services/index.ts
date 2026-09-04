@@ -5,6 +5,9 @@ import type {
   RegisteredVisitor,
   Role,
   Society,
+  Building,
+  Floor,
+  Flat,
   User,
   CreateVisitRequestInput,
   VisitRequest,
@@ -98,6 +101,10 @@ export interface AuthSession {
   ip?: string;
 }
 
+export interface SetupStatus {
+  available: boolean;
+}
+
 export interface AuthService {
   login(input: LoginInput): Promise<AuthResult>;
   signup(input: SignupInput): Promise<{ needsVerification: true; user: User } | AuthResult>;
@@ -117,6 +124,14 @@ export interface AuthService {
   listSessions(): Promise<{ available: boolean; sessions: AuthSession[] }>;
   revokeOtherSessions(): Promise<void>;
   deleteAccount(input: DeleteAccountInput): Promise<void>;
+  /**
+   * First-admin bootstrap.
+   *   - getSetupStatus() returns available:true only when ZERO admins exist in DB.
+   *   - provisionFirstAdmin() creates the first ADMIN, issues a JWT, and auto logs in.
+   *   After success, subsequent calls are rejected server-side with 403.
+   */
+  getSetupStatus(): Promise<SetupStatus>;
+  provisionFirstAdmin(input: SignupInput): Promise<AuthResult>;
 }
 
 export interface VisitorService {
@@ -127,8 +142,42 @@ export interface VisitorService {
   updateVisitStatus(id: string, status: VisitRequest["visitStatus"]): Promise<VisitRequest | undefined>;
 }
 
+export interface SocietyInput {
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  contactPhone?: string;
+  contactEmail?: string;
+}
+
+export interface BuildingInput {
+  name: string;
+  status?: "ACTIVE" | "INACTIVE";
+}
+
+export interface FloorInput {
+  number: number;
+  status?: "ACTIVE" | "INACTIVE";
+}
+
+export interface FlatInput {
+  number: string;
+  status?: "ACTIVE" | "INACTIVE";
+}
+
 export interface SocietyService {
-  getSociety(): Promise<Society>;
+  getSociety(): Promise<Society | null>;
+  listSocieties(): Promise<Society[]>;
+  createSociety(input: SocietyInput): Promise<Society>;
+  updateSociety(id: string, input: SocietyInput): Promise<Society>;
+  createBuilding(societyId: string, input: BuildingInput): Promise<Building>;
+  updateBuilding(id: string, input: BuildingInput): Promise<Building>;
+  createFloor(buildingId: string, input: FloorInput): Promise<Floor>;
+  updateFloor(id: string, input: FloorInput): Promise<Floor>;
+  createFlat(floorId: string, input: FlatInput): Promise<Flat>;
+  updateFlat(id: string, input: FlatInput): Promise<Flat>;
   getSummary(role: Role): Promise<DashboardSummary[]>;
 }
 
@@ -145,7 +194,8 @@ export interface AuditService {
   list(): Promise<AuditEvent[]>;
 }
 
-const society: Society = {
+/** Demo visitor/security flows still use this in-memory society until those modules are wired. */
+const demoSociety: Society = {
   id: "society-green-residency",
   name: "Green Residency",
   address: "24 Lakeview Road, Bengaluru 560038",
@@ -171,7 +221,7 @@ const users: Record<Role, User> = {
 
 const resident = { ...users.RESIDENT, role: "RESIDENT" as const, flatId: "flat-a203" };
 const visitor = { ...users.VISITOR, role: "VISITOR" as const, visitorType: "GUEST" as const };
-const flat = society.buildings[0]?.floors[0]?.flats[0];
+const flat = demoSociety.buildings[0]?.floors[0]?.flats[0];
 if (!flat) throw new Error("Mock society must include a flat");
 
 let requests: VisitRequest[] = [
@@ -179,7 +229,7 @@ let requests: VisitRequest[] = [
     id: "visit-amit-today",
     visitor,
     resident,
-    society,
+    society: demoSociety,
     flat,
     source: "VISITOR",
     requestStatus: "APPROVED_BY_RESIDENT",
@@ -195,7 +245,7 @@ let requests: VisitRequest[] = [
     id: "visit-delivery-041",
     visitor: { ...visitor, id: "visitor-rina", name: "Rina from FreshCart", visitorType: "DELIVERY" },
     resident,
-    society,
+    society: demoSociety,
     flat,
     source: "RESIDENT",
     requestStatus: "PENDING_SECURITY",
@@ -210,7 +260,7 @@ let requests: VisitRequest[] = [
     id: "visit-technician-039",
     visitor: { ...visitor, id: "visitor-suresh", name: "Suresh Electricals", visitorType: "TECHNICIAN" },
     resident,
-    society,
+    society: demoSociety,
     flat,
     source: "SECURITY",
     requestStatus: "PENDING_RESIDENT",
@@ -225,7 +275,7 @@ let requests: VisitRequest[] = [
     id: "visit-cook-032",
     visitor: { ...visitor, id: "visitor-lakshmi", name: "Lakshmi Reddy", visitorType: "DOMESTIC_WORKER" },
     resident,
-    society,
+    society: demoSociety,
     flat,
     source: "RESIDENT",
     requestStatus: "ACCEPTED_BY_SECURITY",
@@ -487,6 +537,26 @@ export const authService: AuthService = {
     await withReadableError(apiFetch<void>("/auth/delete-account", { method: "POST", json: input }));
     authStore.clear();
   },
+
+  // ---------------- First-admin bootstrap ----------------
+
+  async getSetupStatus() {
+    return await withReadableError(
+      apiFetch<SetupStatus>("/auth/setup/status", { method: "GET" }),
+    );
+  },
+
+  async provisionFirstAdmin(input) {
+    const res = await withReadableError(
+      apiFetch<AuthResult>("/auth/setup/first-admin", {
+        method: "POST",
+        json: input,
+      }),
+    );
+    // First-admin creates the account AND issues a session in one step.
+    authStore.setAuthenticated(res.user, res.token);
+    return res;
+  },
 };
 
 export const visitorService: VisitorService = {
@@ -501,8 +571,71 @@ export const visitorService: VisitorService = {
   async updateVisitStatus(id, status) { requests = requests.map((request) => request.id === id ? { ...request, visitStatus: status } : request); return requests.find((request) => request.id === id); },
 };
 
+function countStructure(society: Society | null) {
+  const buildings = society?.buildings.length ?? 0;
+  const floors = society?.buildings.reduce((acc, building) => acc + building.floors.length, 0) ?? 0;
+  const flats = society?.buildings.reduce(
+    (acc, building) => acc + building.floors.reduce((sum, floor) => sum + floor.flats.length, 0),
+    0,
+  ) ?? 0;
+  const residents = society?.buildings.reduce(
+    (acc, building) =>
+      acc +
+      building.floors.reduce(
+        (sum, floor) => sum + floor.flats.reduce((n, item) => n + item.residentIds.length, 0),
+        0,
+      ),
+    0,
+  ) ?? 0;
+  return { buildings, floors, flats, residents };
+}
+
 export const societyService: SocietyService = {
-  async getSociety() { return society; },
+  async listSocieties() {
+    return await withReadableError(apiFetch<Society[]>("/societies"));
+  },
+
+  async getSociety() {
+    const societies = await societyService.listSocieties();
+    return societies[0] ?? null;
+  },
+
+  async createSociety(input) {
+    return await withReadableError(apiFetch<Society>("/societies", { method: "POST", json: input }));
+  },
+
+  async updateSociety(id, input) {
+    return await withReadableError(apiFetch<Society>(`/societies/${id}`, { method: "PUT", json: input }));
+  },
+
+  async createBuilding(societyId, input) {
+    return await withReadableError(
+      apiFetch<Building>(`/societies/${societyId}/buildings`, { method: "POST", json: input }),
+    );
+  },
+
+  async updateBuilding(id, input) {
+    return await withReadableError(apiFetch<Building>(`/buildings/${id}`, { method: "PUT", json: input }));
+  },
+
+  async createFloor(buildingId, input) {
+    return await withReadableError(
+      apiFetch<Floor>(`/buildings/${buildingId}/floors`, { method: "POST", json: input }),
+    );
+  },
+
+  async updateFloor(id, input) {
+    return await withReadableError(apiFetch<Floor>(`/floors/${id}`, { method: "PUT", json: input }));
+  },
+
+  async createFlat(floorId, input) {
+    return await withReadableError(apiFetch<Flat>(`/floors/${floorId}/flats`, { method: "POST", json: input }));
+  },
+
+  async updateFlat(id, input) {
+    return await withReadableError(apiFetch<Flat>(`/flats/${id}`, { method: "PUT", json: input }));
+  },
+
   async getSummary(role) {
     if (role === "SECURITY") return [
       { label: "Expected today", value: "18", helper: "4 arriving next", tone: "blue" },
@@ -516,12 +649,41 @@ export const societyService: SocietyService = {
       { label: "Approved visits", value: "04", helper: "This month", tone: "green" },
       { label: "Visit history", value: "12", helper: "All time", tone: "slate" },
     ];
-    if (role === "ADMIN") return [
-      { label: "Total flats", value: "184", helper: "Across 3 towers", tone: "blue" },
-      { label: "Active residents", value: "412", helper: "98% verified", tone: "green" },
-      { label: "Visitors today", value: "18", helper: "6 online requests", tone: "orange" },
-      { label: "Security users", value: "12", helper: "2 on duty now", tone: "slate" },
-    ];
+    if (role === "ADMIN") {
+      let society: Society | null = null;
+      try {
+        society = await societyService.getSociety();
+      } catch {
+        society = null;
+      }
+      const counts = countStructure(society);
+      return [
+        {
+          label: "Total flats",
+          value: String(counts.flats),
+          helper: counts.buildings ? `Across ${counts.buildings} building${counts.buildings === 1 ? "" : "s"}` : "Create a society to begin",
+          tone: "blue",
+        },
+        {
+          label: "Active residents",
+          value: String(counts.residents),
+          helper: "Linked to flats",
+          tone: "green",
+        },
+        {
+          label: "Buildings",
+          value: String(counts.buildings),
+          helper: `${counts.floors} floor${counts.floors === 1 ? "" : "s"}`,
+          tone: "orange",
+        },
+        {
+          label: "Society setup",
+          value: society ? "Ready" : "Pending",
+          helper: society ? society.name : "No society created yet",
+          tone: "slate",
+        },
+      ];
+    }
     return [
       { label: "Today’s visitors", value: "05", helper: "2 expected soon", tone: "blue" },
       { label: "Pending requests", value: "02", helper: "Needs your review", tone: "orange" },

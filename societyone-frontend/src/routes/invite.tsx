@@ -45,7 +45,7 @@ function InvitePage() {
     let mounted = true;
     Promise.all([
       authService.getCurrentUser(),
-      societyService.getSociety(),
+      societyService.getSociety().catch(() => null),
     ]).then(([currentUser, soc]) => {
       if (mounted) {
         setUser(currentUser);

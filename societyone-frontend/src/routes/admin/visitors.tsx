@@ -13,9 +13,11 @@ import {
   StatGrid,
 } from "@/components/societyone";
 import { authService, societyService, visitorService } from "@/services";
+import { requireAuth } from "@/lib/auth/require-auth";
 import type { DashboardSummary, Role, User, VisitRequest } from "@/types/domain";
 
 export const Route = createFileRoute("/admin/visitors")({
+  beforeLoad: requireAuth,
   head: () => ({
     meta: [
       { title: "Visitor activity | SocietyOne Admin" },

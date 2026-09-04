@@ -21,6 +21,7 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as RegularVisitorsRouteImport } from './routes/regular-visitors'
 import { Route as RequestsRouteImport } from './routes/requests'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SetupAdminRouteImport } from './routes/setup-admin'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
 import { Route as AdminSocietyRouteImport } from './routes/admin/society'
@@ -89,6 +90,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupAdminRoute = SetupAdminRouteImport.update({
+  id: '/setup-admin',
+  path: '/setup-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -138,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/setup-admin': typeof SetupAdminRoute
   '/signup': typeof SignupRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/admin/society': typeof AdminSocietyRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/setup-admin': typeof SetupAdminRoute
   '/signup': typeof SignupRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/admin/society': typeof AdminSocietyRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/setup-admin': typeof SetupAdminRoute
   '/signup': typeof SignupRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/admin/society': typeof AdminSocietyRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/regular-visitors'
     | '/requests'
     | '/reset-password'
+    | '/setup-admin'
     | '/signup'
     | '/verify-otp'
     | '/admin/society'
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/regular-visitors'
     | '/requests'
     | '/reset-password'
+    | '/setup-admin'
     | '/signup'
     | '/verify-otp'
     | '/admin/society'
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/regular-visitors'
     | '/requests'
     | '/reset-password'
+    | '/setup-admin'
     | '/signup'
     | '/verify-otp'
     | '/admin/society'
@@ -268,6 +280,7 @@ export interface RootRouteChildren {
   RegularVisitorsRoute: typeof RegularVisitorsRoute
   RequestsRoute: typeof RequestsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SetupAdminRoute: typeof SetupAdminRoute
   SignupRoute: typeof SignupRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
   SecurityAtSecurityRoute: typeof SecurityAtSecurityRoute
@@ -361,6 +374,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/setup-admin': {
+      id: '/setup-admin'
+      path: '/setup-admin'
+      fullPath: '/setup-admin'
+      preLoaderRoute: typeof SetupAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -438,6 +458,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegularVisitorsRoute: RegularVisitorsRoute,
   RequestsRoute: RequestsRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SetupAdminRoute: SetupAdminRoute,
   SignupRoute: SignupRoute,
   VerifyOtpRoute: VerifyOtpRoute,
   SecurityAtSecurityRoute: SecurityAtSecurityRoute,

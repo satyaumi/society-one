@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ShieldCheck } from "lucide-react";
 import logoAsset from "@/assets/societyone-logo.png.asset.json";
-
+import { Link } from "@tanstack/react-router";
 /**
  * Reusable split-screen authentication shell.
  * Every auth route renders inside this so the visual identity is guaranteed identical to /auth.
@@ -24,16 +24,20 @@ export function AuthLayout({
     <div className="grid min-h-screen bg-background lg:grid-cols-[.8fr_1.2fr]">
       {/* Left: branded intro */}
       <div className="hidden bg-sidebar p-10 text-sidebar-foreground lg:flex lg:flex-col lg:justify-between">
-        <div className="flex items-center gap-3">
-          <img
-            src={logoAsset.url}
-            alt="SocietyOne"
-            className="size-11 rounded-xl object-cover"
-          />
-          <span className="font-display text-xl font-bold">
-            Society<span className="text-sidebar-primary">One</span>
-          </span>
-        </div>
+      <Link
+  to="/"
+  className="flex w-fit items-center gap-3 rounded-xl transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-sidebar-primary"
+  aria-label="Go to SocietyOne home"
+  >
+  <img
+    src={logoAsset.url}
+    alt="SocietyOne"
+    className="size-11 rounded-xl object-cover"
+  />
+  <span className="font-display text-xl font-bold">
+    Society<span className="text-sidebar-primary">One</span>
+  </span>
+</Link>
         <div>
           <ShieldCheck className="size-12 text-sidebar-primary" />
           <h1 className="mt-6 max-w-md font-display text-5xl font-bold leading-tight">
@@ -52,16 +56,22 @@ export function AuthLayout({
       {/* Right: form */}
       <div className="flex items-center justify-center px-5 py-12">
         <div className="w-full max-w-lg">
-          <div className="mb-10 lg:hidden">
-            <img
-              src={logoAsset.url}
-              alt="SocietyOne"
-              className="size-12 rounded-xl object-cover"
-            />
-            <p className="mt-4 font-display text-xl font-bold">
-              Society<span className="text-brand-orange">One</span>
-            </p>
-          </div>
+         <div className="mb-10 lg:hidden">
+  <Link
+    to="/"
+    className="inline-flex flex-col rounded-xl transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+    aria-label="Go to SocietyOne home"
+  >
+    <img
+      src={logoAsset.url}
+      alt="SocietyOne"
+      className="size-12 rounded-xl object-cover"
+    />
+    <p className="mt-4 font-display text-xl font-bold">
+      Society<span className="text-brand-orange">One</span>
+    </p>
+  </Link>
+</div>
           {eyebrow && (
             <p className="text-sm font-bold uppercase tracking-[0.16em] text-brand-orange">
               {eyebrow}

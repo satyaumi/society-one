@@ -1,6 +1,8 @@
 package com.societyone.app.auth.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record SignupRequest (
@@ -9,9 +11,11 @@ public record SignupRequest (
     String fullName,
 
     @NotBlank(message = "Username is required")
-    @Size(min=3, max=50, message = "Username  must be between 3 and 50 characters")
+    @Size(min=3, max=30, message = "Username must be between 3 and 30 characters")
+    @Pattern(regexp = "^[a-zA-Z0-9_.-]+$", message = "Username may only contain letters, numbers, and . _ -")
     String username,
 
+    @Email(message = "Please enter a valid email address")
     String email,
     String mobileNumber,
     @NotBlank(message = "Password is required")
