@@ -1,0 +1,39 @@
+# ==============================================================================
+# SocietyOne Frontend .gitignore
+# ==============================================================================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing & Coverage
+coverage/
+
+# Production build outputs
+dist/
+dist-ssr/
+*.local
+
+# TanStack Router generated artifacts
+.tanstack/
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Vite cache & build info
+.vite/
+*.tsbuildinfo

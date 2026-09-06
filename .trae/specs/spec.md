@@ -1,203 +1,253 @@
-# SocietyOne Authentication Integration - Product Requirements Document
+# SocietyOne Backend Completion — Specification
 
 ## Overview
-- **Summary**: Fix, complete, and end-to-end verify the existing SocietyOne authentication system across the Spring Boot backend and React frontend. The repository already contains auth entity skeletons, DTOs, a controller shell, JWT infrastructure, and a fully-designed frontend auth UI + service layer. The task is to make the broken pieces compile, run, and interoperate without introducing duplicate architecture.
-- **Purpose**: SocietyOne (resident/visitor/security gate management) cannot ship unless users can sign up, log in, recover passwords, remain authenticated across refreshes, and hit protected endpoints with valid JWTs. Today the backend fails at compile time and runtime; several backend endpoints the frontend already calls do not exist.
-- **Target Users**: Residents, visitors, security staff, and society admins who authenticate via the React web client against the Spring Boot API.
+- **Summary**: Complete the existing Spring Boot backend for the SocietyOne residential society management system. The backend already has authentication, society structure (Society→Building→Floor→Flat), skeleton resident/security/visitor modules, and 5 Flyway migrations. All remaining work must harden these modules, add a real Audit system, a real Notification system, Dashboard APIs, proper validation, society isolation, and end-to-end compilation + test verification.
+- **Purpose**: The SocietyOne frontend calls backend APIs that are currently either stubbed, unguarded, authorization-weak, or backed entirely by in-memory demo data. The backend must become production-ready so the frontend can work against real database-backed data only.
+- **Target Users**: Backend engineers maintaining SocietyOne; frontend apps used by ADMIN, SECURITY, RESIDENT, and VISITOR roles.
 
 ## Goals
-- Backend compiles, boots, connects to PostgreSQL, and exposes all auth endpoints the frontend calls.
-- Signup, email login, mobile login, `/me`, logout work end-to-end with real JWTs.
-- Forgot-password → verify-OTP → reset-password flow works using a development-safe OTP mechanism (no external SMS/email required).
-- Frontend never falls back to fake/demo users; real backend auth is the only path.
-- No password is stored or returned in plaintext; no secret is hardcoded unsafely beyond existing dev configuration.
-- All protected endpoints require a valid Bearer JWT and reject invalid/expired tokens with 401.
-- CORS permits `http://localhost:5173` during development with credentials-aware header handling.
-- Existing SocietyOne pages (dashboard, requests, invite, history, notifications, admin, security sections) continue to load and navigate without error after the fixes.
+- Harden Resident Management: admin-only assignment, role promotion, society ownership checks, flat validation, duplicate resident prevention, status toggling, correct list/get semantics.
+- Finish Security Staff management: activate/deactivate endpoint, enum status type, society isolation, password policy validation.
+- Harden Visitor Management: fix the workflow to match the documented state machine (PENDING_RESIDENT → APPROVED_BY_RESIDENT → PENDING_SECURITY → ACCEPTED_BY_SECURITY → WAITING_AT_GATE → CHECKED_IN → CHECKED_OUT), fix security actor validation bug, add role-aware list requests, add visitor GET endpoints, add cancellation where appropriate, strict state-transition enforcement.
+- Add real database-backed Audit Log system with entity/repo/DTO/service/controller, Flyway V6, recording of all listed audit actions, society isolation, correct HTTP endpoints.
+- Add real database-backed Notification system with entity/repo/DTO/service/controller, Flyway V7 (or V6-part2), endpoints GET list / PATCH read / PATCH read-all, automatic notification creation on workflow events, strict user isolation.
+- Expose real Dashboard APIs that the frontend `societyService.getSummary(role)` and `visitorService.listRequests(role)` call, returning actual DB counts per role.
+- Ensure robust Validation and Error Handling using @Valid, Bean Validation, existing ApiResponse/GlobalExceptionHandler, meaningful HTTP status codes, and explicit error codes for USER_NOT_FOUND / FLAT_NOT_FOUND / RESIDENT_NOT_FOUND / VISITOR_NOT_FOUND / REQUEST_NOT_FOUND / FORBIDDEN / INVALID_STATE_TRANSITION / DUPLICATE_RESIDENT / DUPLICATE_SECURITY_STAFF.
+- Enforce Society Isolation on every society-scoped resource: Admin cannot see another society's data; Security staff only access their society; Residents only access their flat/requests. Never trust client-supplied societyId/flatId/residentId/userId without re-verifying ownership.
+- Review Database Quality: keep existing V1–V5 intact; add new V6/V7 migrations only (no destructive edits); ensure proper FKs, indexes, NOT NULL, unique constraints, CHECK constraints, correct ON DELETE, timestamps.
+- Run `mvn clean test` and `mvn spring-boot:run`; verify startup; manually exercise the 21 test actions listed in Phase 10. Resolve all compilation/runtime failures.
+- Maintain Code Quality: constructor injection; thin controllers; services own all business logic; no CurrentUser bean injection; reuse User.setPasswordHash() and existing conventions.
 
 ## Non-Goals
-- Implementing real SMS or real email delivery. OTPs must be verifiable in dev without an external provider.
-- Google OAuth end-to-end token exchange with Google's servers (the popup/postMessage scaffolding is preserved but out of scope for live credentials).
-- Adding new user roles, new account statuses, or new database tables beyond what the migration already defines.
-- Rewriting the frontend auth store, auth API client, route components, or TanStack Router setup (only fixing mismatches).
-- Rewriting unrelated modules: society structure, visitor requests, notifications.
+- Do NOT rewrite authentication, signup, login, JWT, OTP, first-admin bootstrap. All exist and must work unchanged.
+- Do NOT modify already-applied Flyway migrations V1–V5 in any destructive way. Only add new V6/V7.
+- Do NOT add fake/demo/in-memory data anywhere in new backend code.
+- Do NOT add Google OAuth backend endpoints (frontend popup scaffolding only; out of scope).
+- Do NOT move JWT secret or DB password out of application.yaml (documented as dev config; preserved).
+- Do NOT create a separate User factory public method; inline user creation in SecurityStaffService/ResidentService with consistent logic mirroring AuthService.createUser() semantics (role, accountStatus, BCrypt hash).
+- Do NOT change the REST shape of existing working endpoints the frontend already calls. Add new endpoints; extend existing ones only when strictly necessary to preserve non-regression.
 
 ## Background & Context
-**Repository layout discovered:**
-- Backend: `societyone-backend/` — Maven, Spring Boot 4.1.1, Java 21, Spring Security, JPA, Flyway, PostgreSQL, jjwt 0.13.0.
-- Frontend: `societyone-frontend/` — Vite, React 19, TypeScript 6, TanStack Router + Query, Radix UI, Tailwind v4, localStorage-based token + user cache.
-- Database: PostgreSQL at `localhost:5432/societyone`, migration `V1__create_users_table.sql` defines `users(id BIGSERIAL PK, full_name, username UNIQUE, email UNIQUE nullable, mobile_number UNIQUE nullable, password_hash, role VARCHAR, account_status VARCHAR, email_verified, mobile_verified, created_at/updated_at timestamptz, last_login_at)`.
-- Backend auth packages exist but are broken: `com.societyone.app.auth.entity.{User,Role,AccountStatus}`, `dto.{SignupRequest,LoginRequest,AuthResponse,SafeUserResponse}`, `repository.UserRepository` (EMPTY class — the #1 compilation blocker), `security.{JwtService,JwtAuthenticationFilter}`, `service.AuthService`, `controller.AuthController`. Common packages: `config.{SecurityConfig,PasswordConfig}`, `api.{ApiResponse,HealthController}`, `exception.GlobalExceptionHandler`.
-- Frontend auth modules (designed to match a backend that currently fails): `lib/auth/{auth-api-client.ts (apiFetch + tokenStore + ApiEnvelope), auth-store.ts (in-memory + localStorage + restoreSession calls /auth/me), error-mapper.ts, intended-role.ts, password-validators.ts, require-auth.ts}`, routes `/login, /signup, /forgot-password, /reset-password, /verify-otp, /dashboard (beforeLoad: requireAuth)`, services `index.ts` (authService interface + methods calling apiFetch).
+### Repository
+- Backend: `societyone-backend/` — Spring Boot 4.1.1, Java 21, Spring Security, Spring Data JPA, Flyway, PostgreSQL, jjwt 0.13.0, BCrypt.
+- Frontend: `societyone-frontend/` — React 19 + TanStack Router/Query + Vite + TypeScript. All `services/index.ts` `authService`, `residentService`, `securityStaffService` already hit real backend URLs; `visitorService`, `notificationService`, `auditService`, and `societyService.getSummary` return demo data as of this writing.
 
-**Critical defects discovered during inspection:**
-1. `UserRepository.java` is an empty class. It does not extend `JpaRepository<User, Long>` and has none of the methods AuthService and JwtAuthenticationFilter call (`findByUsernameIgnoreCase`, `findByEmailIgnoreCase`, `findByMobileNumber`, `existsByUsernameIgnoreCase`, `existsByEmailIgnoreCase`, `existsByMobileNumber`, `save`).
-2. Controller exposes only `/signup, /login, /me, /logout`. Frontend additionally calls `/forgot-password`, `/reset-password`, `/verify-otp`, `/resend-otp`.
-3. `SecurityConfig.permitAll()` does not list the forgot/reset/verify-otp/resend-otp endpoints.
-4. Backend SignupRequest accepts `email + mobileNumber` without enforcing at least one is present; DB columns are nullable.
-5. Password validation: frontend enforces uppercase + lowercase + digit + special + length ≥ 8; backend `@Size(min=8)` only. Username: frontend max 30 + pattern; backend 50 without pattern.
-6. Error codes: frontend `KNOWN_CODES` expects `EMAIL_ALREADY_REGISTERED / MOBILE_ALREADY_REGISTERED / USERNAME_ALREADY_TAKEN / OTP_INVALID / OTP_EXPIRED`. Backend AuthService throws generic ResponseStatusException with code `CONFLICT` (from GlobalExceptionHandler), so the frontend's detailed user-facing strings are never triggered.
-7. No OTP store or OTP service exists on the backend for the forgot-password / verify-otp / reset-password flow.
-8. Login's `method` field is not validated against an allowed set.
-9. application.yaml contains hardcoded DB password and JWT secret in source tree. (Left as-is per existing dev config; no new secrets are added to source.)
+### Key Defects Discovered During Phase 0
+1. **ResidentService / ResidentController** — No role guard, no society ownership check, does not promote the assigned user to `Role.RESIDENT`, no "list residents for admin's society" endpoint, duplicate `userId` in @RequestParam + DTO, flat not validated against admin's society.
+2. **SecurityStaffProfile.status** is a bare `String`; everything else uses an enum (ResidentStatus). Need `SecurityStaffStatus` enum + DB column check constraint.
+3. **Security Staff** missing `PATCH /api/security-staff/{id}/status` activate/deactivate endpoint.
+4. **VisitorService.validateActorAccess()** bug for `Role.SECURITY`: compares `actor.getId()` to `resident.getId()`, which cannot possibly work. Should check the security staff's assigned society matches the request society.
+5. **Visitor workflow state machine**: Current code skips `PENDING_SECURITY` between `APPROVED_BY_RESIDENT` and `ACCEPTED_BY_SECURITY`. The documented workflow in the task requires the intermediate state. `initialRequestStatus` also needs review: `RESIDENT` source should self-approve and go to `PENDING_SECURITY`.
+6. **Visitor list requests**: `listRequests` endpoint only calls `listForAdmin`; RESIDENT and SECURITY roles cannot list their own applicable requests. No GET `/api/visitors` or GET `/api/visitors/{id}`.
+7. **Audit**: Zero backend. Frontend `auditService.list()` returns in-memory `auditEvents`.
+8. **Notifications**: Zero backend. Frontend `notificationService.list(role)` and `markRead(id)` operate on `notificationSeed`. Frontend expects Notification shape: `{id, title, description, type: REQUEST|APPROVAL|ENTRY|EXIT|SYSTEM, timestamp, read, requestId?}`.
+9. **Dashboard**: `societyService.getSummary(role)` returns hardcoded role-based DashboardSummary arrays. `visitorService.listRequests(role)` returns hardcoded `requests`. Need real endpoints.
+10. **Error codes**: GlobalExceptionHandler lacks mappings for resident/security/visitor/audit/notification domain errors (USER_NOT_FOUND, FLAT_NOT_FOUND, INVALID_STATE_TRANSITION, etc.).
+11. **Society isolation holes**: Resident and security endpoints return data for any ID supplied without checking the authenticated admin owns the society.
+
+### Existing Completed Work (Must Preserve)
+- Auth: User/Role/AccountStatus, JWT filter + service, login, signup, /me, logout, forgot/reset/verify/resend OTP, BCrypt, first-admin bootstrap.
+- Society structure: Society → Building → Floor → Flat hierarchy, create/update/list controllers with ADMIN guards, ownership checks.
+- Security Staff: POST + GET list + GET by id endpoints already compile + work (but missing status update and enum type).
+- Resident DB: ResidentProfile/ResidentType/ResidentStatus entities + skeleton service/controller (unguarded).
+- Visitor DB: Visitor, VisitRequest, enums, all workflow endpoints exist (but buggy + weak authorization).
+- Flyway migrations V1 through V5 currently exist; entities and `ddl-auto: validate` must align.
 
 ## Functional Requirements
-- **FR-1 Signup email/mobile**: Backend accepts `SignupRequest` via `POST /api/auth/signup` and creates a `users` row with BCrypt-hashed password, role defaulted to `VISITOR` (ignoring `intendedRole`), status `ACTIVE`, timestamps set, username/email/mobile unique checks enforced using specific error codes the frontend maps. At least one of email or mobile must be provided.
-- **FR-2 Login email**: `POST /api/auth/login` with `{method:"email", identifier, password}` → look up by email (case-insensitive), verify BCrypt, reject disabled/locked with 403, reject wrong password with 401, update `last_login_at`, return `{token, user}` wrapped in `ApiResponse.success`.
-- **FR-3 Login mobile**: Same flow with `{method:"mobile", identifier}`; lookup by normalized mobile number.
-- **FR-4 JWT issuance and validation**: `JwtService.generateToken(userId, username, role)` → signed HS256 JWT using configured Base64 secret; claims `sub=username`, `userId`, `role`, standard `iat/exp`. `JwtAuthenticationFilter` extracts `Authorization: Bearer <token>`, loads user, enforces `account_status=ACTIVE`, populates `SecurityContext` with `ROLE_<ROLE>` authority, otherwise passes through unauthenticated.
-- **FR-5 /api/auth/me**: Protected GET returns `SafeUserResponse` for the authenticated principal; must not include password or hash.
-- **FR-6 /api/auth/logout**: POST returns success; frontend is responsible for token removal (stateless).
-- **FR-7 Forgot password**: `POST /api/auth/forgot-password {method, identifier}` → look up user, generate 6-digit OTP, store OTP with purpose `PASSWORD_RESET` and short TTL in an in-memory (ConcurrentHashMap-backed) OTP store; response `{identifier}`. In dev, OTP value is deterministically derivable/printable via server logs so the flow can be tested without email/SMS.
-- **FR-8 Verify OTP**: `POST /api/auth/verify-otp {identifier, otp, purpose}` → validate OTP existence, match, non-expiry, correct purpose; return either `{verified:true}` (PASSWORD_RESET purpose → frontend goes to reset-password) or issue a session `{token, user}` (SIGNUP purpose). Specific error codes `OTP_INVALID`, `OTP_EXPIRED`.
-- **FR-9 Resend OTP**: `POST /api/auth/resend-otp {identifier, purpose}` → regenerate/invalidate prior OTP for the same identifier+purpose; succeed silently.
-- **FR-10 Reset password**: `POST /api/auth/reset-password {identifier, otp, newPassword}` → validate OTP purpose=PASSWORD_RESET, enforce password policy, BCrypt-hash new password, update `users.password_hash`, invalidate the consumed OTP, return success.
-- **FR-11 Protected endpoint enforcement**: Any endpoint not in permitAll → 401 without JWT; 401 with expired/invalid JWT; 403 when role or account status forbids.
-- **FR-12 Frontend session restore**: On app boot `authStore.restoreSession()` reads token+user from localStorage, then calls `GET /api/auth/me`; on 401/403 clears locally; on success refreshes the cached user. Protected route guard `requireAuth()` redirects to `/login` when unauthenticated.
-- **FR-13 Error contract**: `GlobalExceptionHandler` wraps every error as `ApiResponse.failure(code, message, details?)` with the exact `code` strings frontend `KNOWN_CODES` uses where applicable; validation errors retain field-level `details`.
-- **FR-14 CORS**: `SecurityConfig.corsConfigurationSource` allows `http://localhost:5173`, methods GET/POST/PUT/PATCH/DELETE/OPTIONS, headers `Authorization, Content-Type, Accept`, exposes `Authorization`, and is configured so preflight succeeds before auth filters run.
-- **FR-15 Demo/fallback neutrality**: The frontend `authService.login/signup/forgotPassword/resetPassword/verifyOtp` paths genuinely hit the backend and surface backend errors rather than returning mock success (verified by actually running them). No new mock fallback users are introduced.
 
-## Non-Functional Requirements
-- **NFR-1 Compilability**: Backend `mvnw.cmd clean compile` exits 0; frontend `npm run build` (tsc + vite build) exits 0.
-- **NFR-2 Bootability**: Backend starts on port 8082 with a healthy database connection or fails with a clear single error; Flyway migration runs cleanly against an empty/schema-present DB.
-- **NFR-3 Security**: No plaintext password in logs, API responses, or stack traces; BCrypt strength default (10 via default PasswordEncoder).
-- **NFR-4 Consistency**: Backend ↔ Frontend field names match exactly (`method`, `identifier`, `fullName`, `username`, `email`, `mobileNumber`, `intendedRole` on signup; `token`, `user.{id,name,username,email,mobile,role,accountStatus,lastLoginAt}` on auth responses).
-- **NFR-5 Non-regression**: All existing non-auth frontend routes (`/dashboard`, `/invite`, `/requests`, `/history`, `/notifications`, `/security/*`, `/admin/*`) load their layout without throwing; the `AppShell` navigation renders for a logged-in user.
+### Phase 1 — Harden Resident Management
+- **FR-1 Admin list residents**: `GET /api/residents` returns all ResidentProfiles for the authenticated ADMIN's society. Scoped to society ownership (NOT all residents in DB).
+- **FR-2 Admin get resident**: `GET /api/residents/{residentId}` returns a single resident, scoped so ADMIN can only get residents of their society; RESIDENT can get their OWN profile; SECURITY can get any resident in their society.
+- **FR-3 Admin assign user to flat with type**: Modify `POST /api/residents?userId=<userId>` body `{flatId, residentType}` → creates ResidentProfile if: user exists, flat exists, flat belongs to admin's society, user has no existing ResidentProfile, promotes user role to RESIDENT (and accountStatus ACTIVE if not locked), residentType in {OWNER, TENANT, FAMILY_MEMBER}.
+- **FR-4 Admin activate/deactivate**: `PATCH /api/residents/{residentId}/status?status=ACTIVE|INACTIVE` updates ResidentStatus; scoped to same society admin; also toggles the underlying User.accountStatus to ACTIVE/INACTIVE so JWT filter rejects INACTIVE residents on login.
+- **FR-5 Role guard**: Only ADMIN can create/update residents. RESIDENT and SECURITY cannot promote anyone.
+- **FR-6 DTO safety**: ResidentResponse never includes passwordHash; mirrors existing ResidentResponse fields.
+
+### Phase 2 — Complete Security Staff
+- **FR-7 Security staff status enum**: Change `SecurityStaffProfile.status` from String to new enum `SecurityStaffStatus { ACTIVE, INACTIVE }`; existing values convert cleanly.
+- **FR-8 Admin activate/deactivate**: Add `PATCH /api/security-staff/{id}/status?status=ACTIVE|INACTIVE` that updates the profile enum AND the underlying User.accountStatus so JWT respects it.
+- **FR-9 Validation on create**: username/email/mobile uniqueness (already present); password policy compliance (mirror AuthService.passwordMeetsPolicy: ≥8 chars, upper+lower+digit+special); status default ACTIVE and role=SECURITY and accountStatus=ACTIVE.
+- **FR-10 Society isolation**: Security staff can only see and work within their assigned society (profile → society link verified).
+
+### Phase 3 — Harden Visitor Management
+- **FR-11 Corrected workflow state machine**:
+  - VISITOR source → `PENDING_RESIDENT` / `EXPECTED`.
+  - RESIDENT source → since resident is creating for themselves, auto-approve → `PENDING_SECURITY` / `EXPECTED` (not initial `PENDING_RESIDENT`).
+  - SECURITY source → `PENDING_RESIDENT` / `EXPECTED`.
+  - Resident approve: `PENDING_RESIDENT` → `APPROVED_BY_RESIDENT` → `PENDING_SECURITY` (auto advance to pending security as a single transaction; set requestStatus to PENDING_SECURITY).
+  - Resident reject: `PENDING_RESIDENT` → `REJECTED_BY_RESIDENT` + `CANCELLED`.
+  - Security accept: `PENDING_SECURITY` → `ACCEPTED_BY_SECURITY` + `WAITING_AT_GATE`.
+  - Security reject: `PENDING_SECURITY` → `REJECTED_BY_SECURITY` + `CANCELLED`.
+  - Check-in: `ACCEPTED_BY_SECURITY` + `WAITING_AT_GATE` → `CHECKED_IN` (requestStatus stays ACCEPTED_BY_SECURITY).
+  - Check-out: `CHECKED_IN` → `CHECKED_OUT`.
+  - Any other transition → 400 `INVALID_STATE_TRANSITION`.
+- **FR-12 Fix security actor validation bug**: In validateActorAccess for SECURITY and in security-gated endpoints (accept/reject/check-in/check-out), look up `SecurityStaffProfile` for the actor and verify profile.society.id equals request.society.id, not resident.id.
+- **FR-13 Role-aware list requests**: `GET /api/visitors/requests` dispatches:
+  - ADMIN → all requests for admin's society (existing listForAdmin).
+  - RESIDENT → all requests where residentId = current resident (own requests).
+  - SECURITY → all requests for security's society.
+  - VISITOR → requests where the visitor's mobile matches? Or 403. (Current frontend does not use visitor role for request list; default forbid to be safe.)
+- **FR-14 Visitor read endpoints**: `GET /api/visitors` (list, admin/security by society; resident can list visitors tied to their flat's requests), `GET /api/visitors/{id}` (same scoping).
+- **FR-15 Cancellation**: Allow a RESIDENT who owns the request to cancel an EXPECTED/PENDING_SECURITY request → requestStatus stays, visitStatus CANCELLED. 400 if already checked in/out.
+
+### Phase 4 — Real Audit System
+- **FR-16 V6 migration for audit_logs**: Columns id (BIGSERIAL PK), actor_user_id BIGINT FK users(id) ON DELETE SET NULL, society_id BIGINT FK societies(id) ON DELETE CASCADE, action VARCHAR(50) NOT NULL, entity_type VARCHAR(50), entity_id BIGINT, description TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP. Indexes on (society_id, created_at DESC), (actor_user_id), (action), (entity_type, entity_id). CHECK action in controlled list.
+- **FR-17 Audit entities**: `audit/entity/AuditLog.java` entity; enum `AuditAction { AUTH_LOGIN, SOCIETY_CREATED, SOCIETY_UPDATED, BUILDING_CREATED, BUILDING_UPDATED, FLOOR_CREATED, FLOOR_UPDATED, FLAT_CREATED, FLAT_UPDATED, RESIDENT_CREATED, RESIDENT_STATUS_CHANGED, SECURITY_STAFF_CREATED, SECURITY_STAFF_STATUS_CHANGED, VISITOR_CREATED, VISIT_REQUEST_CREATED, VISIT_APPROVED, VISIT_REJECTED, SECURITY_ACCEPTED, SECURITY_REJECTED, VISITOR_CHECKED_IN, VISITOR_CHECKED_OUT }`.
+- **FR-18 Audit components**: AuditLogRepository extends JpaRepository; AuditLogResponse DTO; AuditService that records entries (returns void, throws only on catastrophic persistence failure, never bubbles to business call); AuditController at `/api/audit` with `GET /api/audit` (list, scoped to society for ADMIN, 403 for others) and `GET /api/audit/{id}` (same scoping).
+- **FR-19 Recording**: Every listed action fires an audit record from the corresponding service method (wrapped inside same transaction where possible via `@Transactional` + direct service call). Society must be populated on the AuditLog for every society-scoped action.
+
+### Phase 5 — Real Notification Backend
+- **FR-20 V7 migration for notifications**: `notifications(id BIGSERIAL PK, recipient_user_id BIGINT NOT NULL FK users(id) ON DELETE CASCADE, society_id BIGINT FK societies(id) ON DELETE CASCADE, type VARCHAR(30) NOT NULL, title VARCHAR(200) NOT NULL, message TEXT NOT NULL, read BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, request_id BIGINT FK visit_requests(id) ON DELETE SET NULL). Indexes on (recipient_user_id, created_at DESC), (society_id), (read). CHECK type IN ('REQUEST','APPROVAL','REJECTION','ENTRY','EXIT','SYSTEM').`
+- **FR-21 Notification components**: entity/Notification.java, NotificationRepository, DTOs NotificationResponse, endpoints `GET /api/notifications` (user's own notifications, ordered by created_at DESC), `PATCH /api/notifications/{id}/read` (marks single read), `PATCH /api/notifications/read-all` (marks all unread → read for current user).
+- **FR-22 Automatic notifications from workflow**:
+  - Request created → recipient=resident → type=REQUEST, title "New visitor request", description describes visitor/flat/purpose.
+  - Resident approves → recipient=security staff of society (broadcast: all ACTIVE security in that society) → type=APPROVAL.
+  - Resident rejects → recipient=resident self + original request creator user if known → type=REJECTION.
+  - Security accepts → type=APPROVAL to resident.
+  - Security rejects → type=REJECTION to resident.
+  - Check-in → type=ENTRY to resident.
+  - Check-out → type=EXIT to resident.
+
+### Phase 6 — Admin Data / Dashboard APIs
+- **FR-23 Dashboard summary endpoint**: `GET /api/societies/summary` → returns `List<DashboardSummaryResponse>` based on the caller's role, computed from DB:
+  - ADMIN: {totalResidents, totalFlats, totalSecurityStaff, visitorsToday, pendingRequests, checkedInVisitors, checkedOutVisitors} with labels matching frontend's 4 tiles.
+  - RESIDENT: {todayVisitors, pendingRequests, activeVisits, regularVisitors} with counts.
+  - SECURITY: {expectedToday, waitingAtGate, inside, exitsToday}.
+  - VISITOR: {upcomingVisits, pendingRequests, approvedVisits, visitHistory}.
+  Each tile returned as `{label, value, helper, tone}` matching `DashboardSummary` TS type.
+- **FR-24 Role-aware request list endpoint**: `GET /api/visitors/requests` behavior from FR-13 doubles as the dashboard request list feed (up to 3 per role shown on dashboard; full list on `/requests` page).
+
+### Phase 7 — Validation / Error Handling
+- **FR-25 Validation**: Every controller DTO parameter uses `@Valid`. Add missing `@NotBlank`, `@Size`, `@NotNull` to ResidentCreateRequest/VisitRequestCreateRequest/SecurityStaffCreateRequest where absent. Add password policy inline checks for any endpoint that accepts a cleartext password (security-staff create).
+- **FR-26 Error codes in GlobalExceptionHandler**: Extend handleResponseStatusException to produce codes:
+  - USER_NOT_FOUND (404), FLAT_NOT_FOUND (404), RESIDENT_NOT_FOUND (404), SECURITY_STAFF_NOT_FOUND (404), VISITOR_NOT_FOUND (404), REQUEST_NOT_FOUND (404),
+  - FORBIDDEN (403, already present),
+  - INVALID_STATE_TRANSITION (400),
+  - DUPLICATE_RESIDENT (409),
+  - DUPLICATE_SECURITY_STAFF (409),
+  - WEAK_PASSWORD (400).
+- **FR-27 Safety**: Never return passwordHash, passwords, JWT secret, stack traces.
+
+### Phase 8 — Society Isolation
+- **FR-28 Cross-society forbidden everywhere**: For every endpoint accepting an ID that references a society-owned resource (resident, security staff, flat, building, floor, visit request, visitor, audit log), verify the caller's society relationship matches. On mismatch, return 404 (or 403, consistently with existing code that returns 404 for owned-resource misses).
+- **FR-29 Admin A ≠ Society B**: Explicitly tested in Phase 10.
+
+### Phase 9 — Database Quality
+- **FR-30 V6/V7 migrations only**: No edits to V1–V5. All schema additions in V6 (audit) and V7 (notifications). If SecurityStaffProfile.status needs a type change from VARCHAR to strict enum, do it with a new Flyway V8__security_staff_status_enum.sql that rewrites the column and adds a CHECK constraint; or simply add a CHECK constraint in the same migration and keep the Java entity enum mapped by name to VARCHAR (simplest).
+
+### Phase 10 — Testing (see ACs for evidence)
+- **FR-31 Maven**: `mvn clean test` passes (even if contextLoads is the only test, no compilation/runtime failures).
+- **FR-32 Boot**: `mvn spring-boot:run` starts cleanly, context loads, Flyway applies V1–V7 (V8 if needed).
 
 ## Constraints
-- **Technical**: Backend uses Java 21, Spring Boot 4.1.1, Spring Security filter chain; must not replace Spring Security with a custom auth framework. Frontend must keep existing `authStore`, `auth-api-client`, `services/index.ts` architecture — no migration to Zustand/Axios/etc.
-- **Business**: Public signup always creates `VISITOR` role (never trust `intendedRole` from the client). `SECURITY`/`ADMIN` accounts are created by society out-of-band (consistent with signup page UI copy).
-- **Dependencies**: Must not add new Maven/npm packages; existing jjwt 0.13.0, BCrypt, Flyway, PostgreSQL, React 19, TanStack Router are sufficient.
-
-## Assumptions
-- PostgreSQL is reachable at `localhost:5432/societyone` with credentials in `application.yaml`, and the user can create schemas/tables (Flyway `V1` will apply). If DB is unreachable during testing, that is recorded as an environment blocker, not an implementation defect.
-- No production email/SMS gateway is configured; OTPs are either logged server-side or a well-known dev value.
-- The `application.yaml` secret and DB password are pre-existing dev configuration; the fix does NOT move them out of source control during this task (documented as a hardening recommendation only).
+- Modify existing classes only; do NOT duplicate existing entities/repos/services/controllers/DTOs.
+- CurrentUser is static utility (class); never inject as Spring bean. Pattern: `User actor = CurrentUser.require(authentication);`.
+- Use `User.setPasswordHash(...)` — there is no `setPassword` setter on the entity.
+- `SocietyRepository.findByOwnerOrderByNameAsc(User owner)` exists; there is no `findByOwnerId(Long id)`.
+- Flat getter is `flat.getNumber()` not `getFlatNumber()`.
+- `spring.jpa.hibernate.ddl-auto=validate`; every entity field must match its Flyway column or the app won't boot.
+- All new code lives under `com.societyone.app.<module>/` consistent with existing package layout (auth, common, resident, security, society, visitor). New audit/notification/dashboard modules follow the same pattern (audit/entity/repo/dto/service/controller + notification/… + dashboard/… optional).
 
 ## Acceptance Criteria
 
-### AC-1: Backend compiles successfully
+### AC-1 Resident Management hardened
 - **Type**: `rule`
-- **Given**: A clean checkout of the repository with JDK 21 and Maven wrapper available.
-- **When**: Running `mvnw.cmd clean compile` from `societyone-backend/`.
-- **Then**: Maven exits with code 0 and prints `BUILD SUCCESS`.
-- **Pass Condition**: Exit code 0 + BUILD SUCCESS string in stdout.
-- **Evidence**: Terminal output of the compile command captured in task completion.
+- **Given**: Authenticated ADMIN JWT for admin of society S1; user U1 exists and is not a resident; flat F1 in S1.
+- **When**: POST /api/residents?userId=U1 with body {flatId: F1, residentType: OWNER}.
+- **Then**: ResidentProfile row created, User.role = RESIDENT, accountStatus ACTIVE. GET /api/residents returns U1. PATCH status → INACTIVE removes User.accountStatus ACTIVE (JWT rejects). Same call for flat in S2 (other society) → 403/404 FORBIDDEN.
+- **Evidence**: HTTP request/response pairs + DB select confirming role=RESIDENT.
 
-### AC-2: Backend boots and exposes endpoints
+### AC-2 Security Staff completed
 - **Type**: `rule`
-- **Given**: PostgreSQL reachable and schema ready (or Flyway creating it).
-- **When**: Running the Spring Boot app and hitting `GET /api/health`.
-- **Then**: Response `200 OK` with body including `{"status":"up"}`; `GET /api/auth/login` without auth → 405 or protected as expected; `POST /api/auth/signup|login|forgot-password|verify-otp|reset-password|resend-otp` return JSON responses (not 404).
-- **Pass Condition**: All listed endpoints respond; no 404 for any auth endpoint the frontend calls.
-- **Evidence**: curl/Invoke-WebRequest transcript against running backend.
+- **Given**: ADMIN JWT; society S has security staff S1 with ACTIVE profile.
+- **When**: PATCH /api/security-staff/S1/status status=INACTIVE; then login as S1.
+- **Then**: Security status DB row INACTIVE; User.accountStatus INACTIVE; login returns 403 "Account is not active". Weak password on create returns 400 WEAK_PASSWORD. Email/username/mobile duplicates return 409.
+- **Evidence**: Two PATCH attempts + login attempts + DB select.
 
-### AC-3: UserRepository has the required JPA methods
+### AC-3 Visitor state machine matches documented workflow with no invalid transitions
 - **Type**: `rule`
-- **Given**: The backend source tree.
-- **When**: Inspecting `UserRepository.java`.
-- **Then**: It extends `JpaRepository<User, Long>` and declares `findByUsernameIgnoreCase`, `findByEmailIgnoreCase`, `findByMobileNumber`, `existsByUsernameIgnoreCase`, `existsByEmailIgnoreCase`, `existsByMobileNumber` (either derived queries or explicit JPQL).
-- **Pass Condition**: All six methods resolve for `AuthService` and `JwtAuthenticationFilter` call sites.
-- **Evidence**: Static code inspection + compilation success.
+- **Given**: A fresh VisitRequest created by a VISITOR source.
+- **When**: Attempt transitions in order: (1) resident approve → (2) security accept → (3) check-in → (4) check-out. Then attempt a bad transition (e.g., check-in on a CHECKED_OUT).
+- **Then**: After step 1 requestStatus=PENDING_SECURITY; step 2 requestStatus=ACCEPTED_BY_SECURITY, visitStatus=WAITING_AT_GATE; step 3 CHECKED_IN; step 4 CHECKED_OUT; bad transition → 400 INVALID_STATE_TRANSITION.
+- **Evidence**: Ordered HTTP calls + each response body showing exact status enum + final invalid transition 400.
 
-### AC-4: Signup correctly creates a user with hashed password and correct error codes
+### AC-4 SECURITY actor validation fixed (security actor cannot access another society)
 - **Type**: `rule`
-- **Given**: Empty users table.
-- **When**: POST `/api/auth/signup` with a valid payload including email + valid password; then repeat the same username; then repeat the same email; then with neither email nor mobile.
-- **Then**: First call → 200, `success=true`, `data.token` non-empty, `data.user.role=="VISITOR"`, DB row `password_hash` begins with `$2a$`/`$2b$` and does NOT equal the input; duplicates → 409 body with code exactly `USERNAME_ALREADY_TAKEN` then `EMAIL_ALREADY_REGISTERED`; missing both identifiers → 400 `VALIDATION_ERROR`.
-- **Pass Condition**: All four sub-cases behave as specified.
-- **Evidence**: HTTP request/response pairs + DB query showing hash prefix.
+- **Given**: Security staff SEC-A from society A; a visit request in society B.
+- **When**: SEC-A calls PATCH /requests/{B-id}/security/accept with their valid JWT.
+- **Then**: 403 FORBIDDEN. No DB mutation. Same for reject/check-in/check-out.
+- **Evidence**: Two calls (accept attempt + check-in attempt) both returning 403.
 
-### AC-5: Login (email and mobile) returns JWT and rejects invalid credentials
+### AC-5 Role-aware /visitors/requests returns correct slice per role
 - **Type**: `rule`
-- **Given**: A valid user created via signup (with known email, mobile, password).
-- **When**: (a) POST login by correct email + correct password; (b) POST login by correct mobile + correct password; (c) POST login by correct email + wrong password; (d) POST login with account_status set to LOCKED (by direct DB update) + correct password.
-- **Then**: (a, b) → 200, `data.token` valid JWT whose payload includes `userId`, `role`, matching username as sub; (c) → 401 code `UNAUTHORIZED` or `INVALID_CREDENTIALS`; (d) → 403 code `FORBIDDEN` message "Account is not active".
-- **Pass Condition**: All four sub-cases pass.
-- **Evidence**: Request/response + decoded JWT claims dump.
+- **Given**: ADMIN, RESIDENT Rajesh, SECURITY Meena from same society; 3 total requests: 2 for Rajesh's flat, 1 for another flat.
+- **When**: Each role calls GET /visitors/requests.
+- **Then**: ADMIN → 3 items; RESIDENT → 2 items (own flat only); SECURITY → 3 items (all society). VISITOR role → 403.
+- **Evidence**: 4 HTTP responses showing list lengths.
 
-### AC-6: JWT filter authenticates /me and rejects invalid tokens
+### AC-6 Visitor GET endpoints exist and respect isolation
 - **Type**: `rule`
-- **Given**: A valid JWT from login.
-- **When**: `GET /api/auth/me` with (a) `Bearer <valid>`; (b) no Authorization header; (c) `Bearer garbage`; (d) an expired/tampered JWT.
-- **Then**: (a) → 200 `SafeUserResponse` excluding password fields, `id` matches the user; (b, c, d) → 401/403 with `ApiResponse.failure` envelope.
-- **Pass Condition**: All four sub-cases pass.
-- **Evidence**: Four request/response pairs.
+- **Given**: Visitor V1 tied to a request in society A.
+- **When**: GET /api/visitors and GET /api/visitors/V1 by ADMIN of A; then same by ADMIN of B.
+- **Then**: A sees V1; B sees 404 for by-id and empty list for list.
+- **Evidence**: Four HTTP responses.
 
-### AC-7: Forgot-password → verify-otp → reset-password flow succeeds, old password fails
+### AC-7 Audit Log database-backed with correct recording
 - **Type**: `rule`
-- **Given**: Existing user, known email, current password P1.
-- **When**: POST `/forgot-password` → obtain OTP from server log → POST `/verify-otp` → POST `/reset-password` with OTP + new password P2; then login with P1; then login with P2.
-- **Then**: Forgot → 200 `{identifier}`; verify → 200 `{verified:true}` (PASSWORD_RESET purpose); reset → 200 success; P1 login → 401; P2 login → 200 with JWT.
-- **Pass Condition**: End-to-end password change sequence works; old password rejected; new accepted.
-- **Evidence**: Full request/response sequence + two final login attempts.
+- **Given**: Clean audit_logs table; perform 5 actions: admin login (recorded in login flow), create society, create building, create resident, approve visitor request, security accept, check-in, check-out.
+- **Then**: GET /api/audit (admin) contains exactly N new rows (one per recorded action); each has society_id = admin's society; GET /api/audit/{id} by another admin's JWT → 404.
+- **Evidence**: SELECT audit_logs count + HTTP list response + cross-admin by-id 404 response.
 
-### AC-8: OTP produces correct error codes for invalid/expired/consumed scenarios
+### AC-8 Notifications database-backed and auto-created on workflow
 - **Type**: `rule`
-- **Given**: OTP generated for identifier=X purpose=PASSWORD_RESET.
-- **When**: (a) Verify with wrong 6-digit value; (b) Verify after TTL (simulate via clock or manual expiry in code after TTL); (c) Verify correct OTP → succeed → verify same OTP again.
-- **Then**: (a) → 400/401 body with code exactly `OTP_INVALID`; (b) → code exactly `OTP_EXPIRED`; (c) → second verify returns `OTP_INVALID` (one-time consumption enforced).
-- **Pass Condition**: Exact code strings match frontend KNOWN_CODES.
-- **Evidence**: Three response bodies.
+- **Given**: Clean notifications table; resident, security staff, visit request created.
+- **When**: Run request→approve→accept→check-in→check-out sequence.
+- **Then**: Resident receives REQUEST then APPROVAL then ENTRY then EXIT notification; security staff receives APPROVAL notification. GET /api/notifications returns them in desc order; PATCH /notifications/{id}/read marks one read; PATCH /notifications/read-all marks all read. User A cannot see User B's notifications.
+- **Evidence**: Notifications table row counts + endpoints responses + cross-user 404.
 
-### AC-9: Security permitAll covers all public auth endpoints
+### AC-9 Dashboard summary returns real DB-backed counts per role
 - **Type**: `rule`
-- **Given**: No JWT.
-- **When**: OPTIONS and POST to `/api/auth/signup`, `/api/auth/login`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/verify-otp`, `/api/auth/resend-otp`; also `/api/health`.
-- **Then**: None return 401 due to missing JWT. OPTIONS succeeds; POST returns a business-level response (e.g., validation errors are OK).
-- **Pass Condition**: Seven endpoints are reachable unauthenticated.
-- **Evidence**: Response status codes.
+- **Given**: Populated society with 12 flats, 10 residents ACTIVE, 5 security, 7 requests today (3 pending, 2 checked in, 2 checked out).
+- **When**: ADMIN calls societies/summary.
+- **Then**: Response values = totals computed directly from DB (not hardcoded 7/10/5 etc.). Same for RESIDENT and SECURITY roles: values reflect real counts.
+- **Evidence**: HTTP response values vs direct SQL counts match (±time-of-day drift for "today").
 
-### AC-10: CORS preflight succeeds from http://localhost:5173
+### AC-10 GlobalExceptionHandler produces all required error codes
 - **Type**: `rule`
-- **Given**: Backend running.
-- **When**: Sending `OPTIONS /api/auth/login` with `Origin: http://localhost:5173`, `Access-Control-Request-Method: POST`, `Access-Control-Request-Headers: authorization,content-type`.
-- **Then**: Response 200 includes `Access-Control-Allow-Origin: http://localhost:5173`, allow methods covers POST, allow headers covers `authorization,content-type`.
-- **Pass Condition**: All three CORS headers present with expected values.
-- **Evidence**: OPTIONS response headers capture.
+- **Given**: Various failure scenarios.
+- **When**: Trigger each: invalid flat ID for resident (FLAT_NOT_FOUND); user not found during assignment (USER_NOT_FOUND); approve a request already APPROVED (INVALID_STATE_TRANSITION); assign user who is already resident (DUPLICATE_RESIDENT); create security staff with username already taken by another user → DUPLICATE_SECURITY_STAFF or USERNAME_ALREADY_TAKEN; weak password WEAK_PASSWORD.
+- **Then**: Each response contains the exact error code specified.
+- **Evidence**: Six HTTP response bodies with codes.
 
-### AC-11: Frontend builds without TypeScript errors
-- **Type**: `rule`
-- **Given**: Node/npm installed.
-- **When**: Running `npm install` (if needed) then `npm run build` from `societyone-frontend/`.
-- **Then**: Exits 0; no `error TS` lines in output.
-- **Pass Condition**: Exit 0, clean tsc+vite build.
-- **Evidence**: Build log.
-
-### AC-12: Frontend session restore on refresh keeps authenticated user
-- **Type**: `rule`
-- **Given**: Browser with a valid token + user in localStorage after real login.
-- **When**: Reloading the application (simulate by rerunning `authStore.restoreSession()` and inspecting state; or actual browser refresh).
-- **Then**: `isAuthenticated` becomes true; `/api/auth/me` is called; if the token is still valid the user object is refreshed; if backend returns 401 the state is cleared. Protected guard `requireAuth()` returns authenticated=true before dashboard route renders.
-- **Pass Condition**: State transitions and backend call sequence match.
-- **Evidence**: authStore state snapshots + network tab HAR or fetch logging.
-
-### AC-13: Logout clears frontend state and blocks protected navigation
-- **Type**: `rule`
-- **Given**: Authenticated session.
-- **When**: Call `authService.logout()`, then attempt navigate to `/dashboard`, then attempt `GET /api/auth/me` with the old token (just to confirm server treats it as a normal call).
-- **Then**: authStore `isAuthenticated=false`, `token=null`, localStorage `societyone.token.v1` and `societyone.user.v1` removed; `requireAuth()` redirects → `/login`; /me with the removed token from outside the app still works (stateless) but the frontend no longer sends it — confirmed by checking tokenStore.get() === null after logout.
-- **Pass Condition**: All client-side expectations hold.
-- **Evidence**: Store state + localStorage reads.
-
-### AC-14: Duplicate signup rejects with correct frontend user-facing message
+### AC-11 Society isolation on every resource
 - **Type**: `rubric`
-- **Dimension**: Correctness of end-to-end error propagation backend→frontend
-- **Scale**: 1-5
-- **Anchors**: 1 = frontend shows generic "Something went wrong"; 3 = frontend shows 409-level copy but not the specific field string; 5 = frontend shows exactly "Username already taken." / "Email already registered." / "Mobile number already registered." driven by exact backend code.
-- **Pass Threshold**: >= 4
-- **Evidence**: Three attempts (duplicate username, duplicate email, duplicate mobile) with screenshots or console error.code values.
+- **Dimension**: Coverage of cross-society guards
+- **Scale**: 0-2
+- **Anchors**: 0 = 3+ resources leak across societies; 1 = 1-2 leak; 2 = all resources guarded
+- **Pass threshold**: >= 2
+- **Evidence**: Tabular listing of each scoped endpoint + which line in which service performs ownership verification.
 
-### AC-15: No unrelated SocietyOne pages break
+### AC-12 Database quality (V6 V7 migrations apply cleanly with indexes/constraints)
+- **Type**: `rule`
+- **Given**: Empty `societyone` DB.
+- **When**: Boot backend with Flyway enabled.
+- **Then**: V1..V7 all apply; `ddl-auto: validate` passes; psql `\d audit_logs` shows FKs and indexes; `\d notifications` same. No destructive changes to V1..V5.
+- **Evidence**: Startup log with "Successfully applied 7 migrations" + psql describe outputs.
+
+### AC-13 Backend compiles, tests pass, boots
+- **Type**: `rule`
+- **Given**: Clean checkout, Postgres running, environment configured.
+- **When**: Run `mvnw.cmd clean test` then `mvnw.cmd spring-boot:run`.
+- **Then**: mvn test BUILD SUCCESS; backend prints "Started SocietyoneBackendApplication" with port 8081.
+- **Evidence**: Maven build log tail + startup log last 20 lines.
+
+### AC-14 All 21 Phase 10 manual scenarios behave correctly end-to-end
 - **Type**: `rubric`
-- **Dimension**: Non-regression quality of existing routes post-auth-fix
-- **Scale**: 1-5
-- **Anchors**: 1 = dashboard crashes on render; 3 = dashboard renders but nav items / notifications throw in console; 5 = dashboard, requests, invite, history, notifications, role-based sidebar all render cleanly with the authenticated user's role, no React error boundaries, no console errors originating from auth state.
-- **Pass Threshold**: >= 4
-- **Evidence**: Browser console log capture after load of dashboard route + navigation through two secondary routes.
+- **Dimension**: End-to-end scenario pass rate
+- **Scale**: 0-2
+- **Anchors**: 0 = ≤14 scenarios pass; 1 = 15–20 pass; 2 = all 21 pass
+- **Pass threshold**: >= 2
+- **Evidence**: Per-scenario checklist with Result: PASS/FAIL + notes.
 
 ## Open Questions
-- [ ] Is PostgreSQL currently running on the environment with the credentials in `application.yaml`? If not, we will boot the backend and note DB connection failure as an environment blocker rather than an implementation failure.
-- [ ] Should the OTP TTL for password reset be 5 minutes or 15 minutes? Assumption: 5 minutes with server log printing of OTP value for dev.
-- [ ] Should the backend also enforce the password regex (upper/lower/digit/special) currently only enforced in frontend? Assumption: yes, for defense-in-depth.
+- None. All ambiguity resolves by inspecting the frontend services/index.ts: Notification shape matches frontend Notification type; DashboardSummary matches exactly the `{label,value,helper,tone}` TS interface.
