@@ -31,11 +31,6 @@ function AuthPage() {
       detail: "Approve visitors and invite guests to your flat.",
     },
     {
-      role: "VISITOR",
-      title: "Visitor",
-      detail: "Request visits and follow your entry status.",
-    },
-    {
       role: "SECURITY",
       title: "Security",
       detail: "Verify arrivals quickly at the gate.",
@@ -92,8 +87,8 @@ function AuthPage() {
             Choose your workspace
           </h2>
           <p className="mt-3 leading-7 text-muted-foreground">
-            Select how you use SocietyOne, then continue to your account. Your
-            signed-in role is always determined by the server, not this screen.
+            Select your account workspace to sign in. SocietyOne keeps entries
+            secure, verified, and transparent.
           </p>
           <div className="mt-8 space-y-3">
             {roles.map((item) => (
@@ -122,7 +117,7 @@ function AuthPage() {
             ))}
           </div>
           <Button
-            className="mt-8 h-12 w-full rounded-lg bg-brand-blue hover:bg-brand-blue/90"
+            className="mt-6 h-12 w-full rounded-lg bg-brand-blue hover:bg-brand-blue/90"
             onClick={async () => {
               await navigate({ to: "/login", search: { role } });
             }}
@@ -130,7 +125,28 @@ function AuthPage() {
             Enter {roles.find((item) => item.role === role)?.title} workspace{" "}
             <ArrowRight />
           </Button>
-         
+
+          {/* Visitor without login section */}
+          <div className="mt-8 rounded-xl border border-brand-orange/30 bg-warning-soft p-5">
+            <span className="inline-block rounded-full bg-brand-orange/20 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-accent-foreground">
+              No account required
+            </span>
+            <h3 className="mt-2 font-display text-lg font-bold text-foreground">
+              Visiting a resident?
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Visitors do not need an account. Request guest entry directly to notify the resident immediately.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4 w-full border-brand-orange/40 font-semibold text-accent-foreground hover:bg-brand-orange/10"
+              onClick={async () => {
+                await navigate({ to: "/invite" });
+              }}
+            >
+              Request Visit as Guest <ArrowRight className="ml-1.5 size-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

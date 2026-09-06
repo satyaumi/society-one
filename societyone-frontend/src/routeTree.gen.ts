@@ -12,18 +12,25 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RegularVisitorsRouteImport } from './routes/regular-visitors'
 import { Route as RequestsRouteImport } from './routes/requests'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SetupAdminRouteImport } from './routes/setup-admin'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminResidentsRouteImport } from './routes/admin/residents'
+import { Route as AdminSecurityStaffRouteImport } from './routes/admin/security-staff'
 import { Route as AdminSocietyRouteImport } from './routes/admin/society'
 import { Route as AdminVisitorsRouteImport } from './routes/admin/visitors'
 import { Route as SecurityAtSecurityRouteImport } from './routes/security/at-security'
@@ -43,6 +50,11 @@ const AdminRoute = AdminRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -75,6 +87,11 @@ const NotificationsRoute = NotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegularVisitorsRoute = RegularVisitorsRouteImport.update({
   id: '/regular-visitors',
   path: '/regular-visitors',
@@ -90,6 +107,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SetupAdminRoute = SetupAdminRouteImport.update({
   id: '/setup-admin',
   path: '/setup-admin',
@@ -100,10 +122,30 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
   path: '/verify-otp',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminResidentsRoute = AdminResidentsRouteImport.update({
+  id: '/residents',
+  path: '/residents',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSecurityStaffRoute = AdminSecurityStaffRouteImport.update({
+  id: '/security-staff',
+  path: '/security-staff',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminSocietyRoute = AdminSocietyRouteImport.update({
   id: '/society',
@@ -135,68 +177,88 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
+  '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/history': typeof HistoryRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/settings': typeof SettingsRoute
   '/setup-admin': typeof SetupAdminRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/admin/residents': typeof AdminResidentsRoute
+  '/admin/security-staff': typeof AdminSecurityStaffRoute
   '/admin/society': typeof AdminSocietyRoute
   '/admin/visitors': typeof AdminVisitorsRoute
   '/security/at-security': typeof SecurityAtSecurityRoute
   '/security/online': typeof SecurityOnlineRoute
   '/security/regular': typeof SecurityRegularRoute
+  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
+  '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/history': typeof HistoryRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/settings': typeof SettingsRoute
   '/setup-admin': typeof SetupAdminRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/admin/residents': typeof AdminResidentsRoute
+  '/admin/security-staff': typeof AdminSecurityStaffRoute
   '/admin/society': typeof AdminSocietyRoute
   '/admin/visitors': typeof AdminVisitorsRoute
   '/security/at-security': typeof SecurityAtSecurityRoute
   '/security/online': typeof SecurityOnlineRoute
   '/security/regular': typeof SecurityRegularRoute
+  '/admin': typeof AdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
+  '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/history': typeof HistoryRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/settings': typeof SettingsRoute
   '/setup-admin': typeof SetupAdminRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/admin/residents': typeof AdminResidentsRoute
+  '/admin/security-staff': typeof AdminSecurityStaffRoute
   '/admin/society': typeof AdminSocietyRoute
   '/admin/visitors': typeof AdminVisitorsRoute
   '/security/at-security': typeof SecurityAtSecurityRoute
   '/security/online': typeof SecurityOnlineRoute
   '/security/regular': typeof SecurityRegularRoute
+  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -204,84 +266,108 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/auth'
+    | '/contact'
     | '/dashboard'
     | '/forgot-password'
     | '/history'
     | '/invite'
     | '/login'
     | '/notifications'
+    | '/privacy'
     | '/regular-visitors'
     | '/requests'
     | '/reset-password'
+    | '/settings'
     | '/setup-admin'
     | '/signup'
+    | '/terms'
     | '/verify-otp'
+    | '/admin/residents'
+    | '/admin/security-staff'
     | '/admin/society'
     | '/admin/visitors'
     | '/security/at-security'
     | '/security/online'
     | '/security/regular'
+    | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/admin'
     | '/auth'
+    | '/contact'
     | '/dashboard'
     | '/forgot-password'
     | '/history'
     | '/invite'
     | '/login'
     | '/notifications'
+    | '/privacy'
     | '/regular-visitors'
     | '/requests'
     | '/reset-password'
+    | '/settings'
     | '/setup-admin'
     | '/signup'
+    | '/terms'
     | '/verify-otp'
+    | '/admin/residents'
+    | '/admin/security-staff'
     | '/admin/society'
     | '/admin/visitors'
     | '/security/at-security'
     | '/security/online'
     | '/security/regular'
+    | '/admin'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/auth'
+    | '/contact'
     | '/dashboard'
     | '/forgot-password'
     | '/history'
     | '/invite'
     | '/login'
     | '/notifications'
+    | '/privacy'
     | '/regular-visitors'
     | '/requests'
     | '/reset-password'
+    | '/settings'
     | '/setup-admin'
     | '/signup'
+    | '/terms'
     | '/verify-otp'
+    | '/admin/residents'
+    | '/admin/security-staff'
     | '/admin/society'
     | '/admin/visitors'
     | '/security/at-security'
     | '/security/online'
     | '/security/regular'
+    | '/admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ContactRoute: typeof ContactRoute
   DashboardRoute: typeof DashboardRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   HistoryRoute: typeof HistoryRoute
   InviteRoute: typeof InviteRoute
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
+  PrivacyRoute: typeof PrivacyRoute
   RegularVisitorsRoute: typeof RegularVisitorsRoute
   RequestsRoute: typeof RequestsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SettingsRoute: typeof SettingsRoute
   SetupAdminRoute: typeof SetupAdminRoute
   SignupRoute: typeof SignupRoute
+  TermsRoute: typeof TermsRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
   SecurityAtSecurityRoute: typeof SecurityAtSecurityRoute
   SecurityOnlineRoute: typeof SecurityOnlineRoute
@@ -309,6 +395,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -353,6 +446,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/regular-visitors': {
       id: '/regular-visitors'
       path: '/regular-visitors'
@@ -374,6 +474,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/setup-admin': {
       id: '/setup-admin'
       path: '/setup-admin'
@@ -388,12 +495,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/verify-otp': {
       id: '/verify-otp'
       path: '/verify-otp'
       fullPath: '/verify-otp'
       preLoaderRoute: typeof VerifyOtpRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/residents': {
+      id: '/admin/residents'
+      path: '/residents'
+      fullPath: '/admin/residents'
+      preLoaderRoute: typeof AdminResidentsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/security-staff': {
+      id: '/admin/security-staff'
+      path: '/security-staff'
+      fullPath: '/admin/security-staff'
+      preLoaderRoute: typeof AdminSecurityStaffRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/society': {
       id: '/admin/society'
@@ -434,13 +569,19 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminResidentsRoute: typeof AdminResidentsRoute
+  AdminSecurityStaffRoute: typeof AdminSecurityStaffRoute
   AdminSocietyRoute: typeof AdminSocietyRoute
   AdminVisitorsRoute: typeof AdminVisitorsRoute
+  AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminResidentsRoute: AdminResidentsRoute,
+  AdminSecurityStaffRoute: AdminSecurityStaffRoute,
   AdminSocietyRoute: AdminSocietyRoute,
   AdminVisitorsRoute: AdminVisitorsRoute,
+  AdminIndexRoute: AdminIndexRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
@@ -449,17 +590,21 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   AuthRoute: AuthRoute,
+  ContactRoute: ContactRoute,
   DashboardRoute: DashboardRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   HistoryRoute: HistoryRoute,
   InviteRoute: InviteRoute,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
+  PrivacyRoute: PrivacyRoute,
   RegularVisitorsRoute: RegularVisitorsRoute,
   RequestsRoute: RequestsRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SettingsRoute: SettingsRoute,
   SetupAdminRoute: SetupAdminRoute,
   SignupRoute: SignupRoute,
+  TermsRoute: TermsRoute,
   VerifyOtpRoute: VerifyOtpRoute,
   SecurityAtSecurityRoute: SecurityAtSecurityRoute,
   SecurityOnlineRoute: SecurityOnlineRoute,

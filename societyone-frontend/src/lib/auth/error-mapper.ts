@@ -30,8 +30,11 @@ const KNOWN_CODES: Record<string, string> = {
   INVALID_CREDENTIALS: "Invalid email or password.",
   INVALID_EMAIL_OR_PASSWORD: "Invalid email or password.",
   INVALID_MOBILE_OR_PASSWORD: "Invalid mobile number or password.",
-  OTP_INVALID: "Invalid OTP.",
-  OTP_EXPIRED: "OTP expired. Please request a new one.",
+  OTP_INVALID: "Invalid OTP. Please check the code and try again.",
+  OTP_EXPIRED: "This OTP has expired. Please request a new OTP.",
+  OTP_COOLDOWN: "Please wait before requesting another OTP.",
+  OTP_MAX_ATTEMPTS: "Too many failed attempts. Please request a new OTP.",
+  OTP_ALREADY_USED: "This OTP has already been used. Please request a new OTP.",
   ACCOUNT_NOT_VERIFIED: "Account not verified. Please verify your account to continue.",
   TOKEN_EXPIRED: "Session expired. Please sign in again.",
   SESSION_EXPIRED: "Session expired. Please sign in again.",
@@ -46,6 +49,8 @@ const KNOWN_CODES: Record<string, string> = {
   VALIDATION_ERROR: "Please review the highlighted fields and try again.",
   NETWORK_ERROR: "Unable to connect to the server.",
   NOT_IMPLEMENTED: "This action is not available yet on the SocietyOne server.",
+  SMTP_NOT_CONFIGURED: "Email delivery service is not configured with SMTP credentials. Please configure your Gmail address and Google App Password in societyone-backend/.env",
+  SMTP_DELIVERY_FAILED: "Unable to send email via SMTP. Please check your SMTP settings and Google App Password.",
 };
 
 export function mapHttpErrorToUserMessage(status: number): string {
@@ -64,15 +69,22 @@ export function resolveErrorMessage(
 
 export { GENERIC as GENERIC_ERROR_MESSAGE };
 
-export function credentialsErrorMessage(method: "email" | "mobile"): string {
+export function credentialsErrorMessage(method?: string): string {
   return method === "mobile"
     ? "Invalid mobile number or password."
-    : "Invalid email or password.";
+    : "Invalid username, email, or password.";
 }
 
 export function toUserError(err: unknown, fallback = "Unable to connect to the server."): string {
-  if (err && typeof err === "object" && "message" in err && typeof err.message === "string" && err.message.trim()) {
-    return err.message;
+  if (err && typeof err === "object") {
+    const e = err as { status?: number; code?: string; message?: string };
+    if (typeof e.status === "number") {
+      return resolveErrorMessage(e.status, e.code, e.message);
+    }
+    if (typeof e.message === "string" && e.message.trim()) {
+      return e.message;
+    }
   }
   return fallback;
 }
+

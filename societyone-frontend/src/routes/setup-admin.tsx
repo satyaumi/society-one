@@ -48,7 +48,7 @@ function SetupAdminPage() {
         setStatus(s);
         if (!s.available) {
           // Admin already exists → this wizard is permanently closed.
-          void navigate({ to: "/login" }, { replace: true });
+          void navigate({ to: "/login", replace: true, search: { role: undefined } });
         }
       })
       .catch((err) => {
@@ -120,7 +120,7 @@ function SetupAdminPage() {
       });
       // provisionFirstAdmin auto-stores the JWT via authStore.setAuthenticated.
       // Send the new admin straight to their workspace.
-      await navigate({ to: "/admin" }, { replace: true });
+      await navigate({ to: "/admin", replace: true });
     } catch (err) {
       setError(toUserError(err));
     } finally {

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
 import { AuthLayout } from "@/components/auth/authlayout";
 import { AuthFormError } from "@/components/auth/authformError";
 import { OtpInput, ResendOtpButton } from "@/components/auth/otpinput";
@@ -39,6 +39,7 @@ function VerifyOtpPage() {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
 
@@ -48,6 +49,7 @@ function VerifyOtpPage() {
     event.preventDefault();
     setError(null);
     setOtpError(null);
+    setResendMessage(null);
     if (!identifier) {
       setError("Missing account identifier. Go back and try again.");
       return;
@@ -72,7 +74,7 @@ function VerifyOtpPage() {
         await navigate({ to: "/reset-password", search: { identifier } });
         return;
       }
-      await navigate({ to: "/login" });
+      await navigate({ to: "/login", search: { role: undefined } });
     } catch (err) {
       if (err instanceof ApiError && err.code === "OTP_EXPIRED") {
         setOtpError("OTP expired.");
@@ -89,9 +91,11 @@ function VerifyOtpPage() {
   async function onResend() {
     if (!identifier) return;
     setError(null);
+    setResendMessage(null);
     setResending(true);
     try {
       await authService.resendOtp({ identifier, purpose });
+      setResendMessage("OTP sent successfully to your email.");
     } catch (err) {
       setError(toUserError(err));
     } finally {
@@ -111,6 +115,12 @@ function VerifyOtpPage() {
     >
       <form className="space-y-6" onSubmit={onSubmit}>
         <AuthFormError message={error} />
+        {resendMessage && (
+          <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm text-success">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+            {resendMessage}
+          </div>
+        )}
         <OtpInput value={otp} onChange={setOtp} error={otpError} autoFocus disabled={loading} />
         <Button
           type="submit"
@@ -121,13 +131,25 @@ function VerifyOtpPage() {
           {loading ? "Verifying..." : "Verify"}
         </Button>
         <div className="flex items-center justify-between">
-          <Link
-            to={purpose === "SIGNUP" ? "/signup" : "/login"}
-            className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            Back
-          </Link>
+          {purpose === "SIGNUP" ? (
+            <Link
+              to="/signup"
+              search={{ role: undefined }}
+              className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" />
+              Back
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              search={{ role: undefined }}
+              className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" />
+              Back
+            </Link>
+          )}
           <ResendOtpButton onResend={onResend} isSending={resending} disabled={!identifier} />
         </div>
       </form>

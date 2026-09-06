@@ -156,6 +156,16 @@ function SignupPage() {
         </Link>
       )}
 
+      {role === "VISITOR" && (
+        <div className="mb-5 rounded-xl border border-brand-orange/30 bg-warning-soft p-4 text-sm leading-6 text-accent-foreground">
+          <p className="font-semibold">Visitors do not require an account.</p>
+          <p className="mt-1 text-xs">You can submit a visit request directly without signing up.</p>
+          <Button asChild size="sm" variant="outline" className="mt-3 border-brand-orange/40 font-semibold">
+            <Link to="/invite">Submit Visitor Request →</Link>
+          </Button>
+        </div>
+      )}
+
       {(role === "ADMIN" || role === "SECURITY") && (
         <div className="mb-5 rounded-xl border border-brand-orange/30 bg-warning-soft px-4 py-3 text-sm leading-6 text-accent-foreground">
           {role === "ADMIN" ? "Admin" : "Security"} accounts cannot be self-registered. Sign in if you already have an invitation, or contact your society administrator.

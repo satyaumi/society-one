@@ -111,6 +111,7 @@ function ForgotPasswordPage() {
         </Button>
         <Link
           to="/login"
+          search={{ role: undefined }}
           className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" />

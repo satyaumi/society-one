@@ -1,22 +1,22 @@
 import { cn } from "@/lib/utils";
 
-export type AuthMethod = "email" | "mobile";
+export type AuthMethod = "username_or_email" | "email" | "mobile";
 
-/** Email/Mobile segmented control used across Login, Signup, Forgot Password. */
-export function AuthMethodToggle({
+/** Segmented control used across Login, Signup, Forgot Password. */
+export function AuthMethodToggle<T extends string = AuthMethod>({
   value,
   onChange,
-  labels = { email: "Email", mobile: "Mobile" },
+  labels = { email: "Email", mobile: "Mobile" } as Record<string, string>,
   id = "auth-method",
 }: {
-  value: AuthMethod;
-  onChange: (v: AuthMethod) => void;
-  labels?: { email: string; mobile: string };
+  value: T;
+  onChange: (v: T) => void;
+  labels?: Record<string, string>;
   id?: string;
 }) {
   return (
-    <div role="tablist" aria-label="Sign in method" className="inline-flex rounded-lg bg-secondary p-1">
-      {(Object.keys(labels) as AuthMethod[]).map((method) => {
+    <div role="tablist" aria-label="Sign in method" className="inline-flex w-full rounded-lg bg-secondary p-1">
+      {(Object.keys(labels) as T[]).map((method) => {
         const active = value === method;
         return (
           <button

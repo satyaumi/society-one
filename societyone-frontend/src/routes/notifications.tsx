@@ -69,9 +69,10 @@ function NotificationsPage() {
           unreadCount > 0 ? (
             <Button
               variant="outline"
-              onClick={() =>
-                Promise.all(items.filter((n) => !n.read).map((n) => markRead(n.id)))
-              }
+              onClick={async () => {
+                await notificationService.markAllRead();
+                setItems((prev) => prev.map((item) => ({ ...item, read: true })));
+              }}
             >
               <BellOff /> Mark all read
             </Button>

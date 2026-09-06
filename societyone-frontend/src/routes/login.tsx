@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2, Mail, ShieldPlus } from "lucide-react";
+import { Loader2, Mail, ShieldPlus, UserRound } from "lucide-react";
 import { AuthLayout } from "@/components/auth/authlayout";
 import { AuthMethodToggle, type AuthMethod } from "@/components/auth/authmethodtoggle";
 import { AuthFormError } from "@/components/auth/authformError";
@@ -32,8 +32,8 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const navigate = useNavigate();
   const { role } = Route.useSearch();
-  const [method, setMethod] = useState<AuthMethod>("email");
-  const [email, setEmail] = useState("");
+  const [method, setMethod] = useState<"username_or_email" | "mobile">("username_or_email");
+  const [usernameOrEmail, setUsernameOrEmail] = useState("");
   const [countryCode, setCountryCode] = useState("+91");
   const [localNumber, setLocalNumber] = useState("");
   const [password, setPassword] = useState("");
@@ -63,23 +63,39 @@ function LoginPage() {
   }, []);
 
   const identifier = useMemo(() => {
-    if (method === "email") return email.trim();
+    if (method === "username_or_email") return usernameOrEmail.trim();
     return sanitizeMobile(`${countryCode}${localNumber}`);
-  }, [method, email, countryCode, localNumber]);
+  }, [method, usernameOrEmail, countryCode, localNumber]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
     setFieldError(null);
 
-    const identifierError =
-      method === "email"
-        ? validateEmail(email)
-        : validateMobile(countryCode, localNumber);
-    if (identifierError) {
-      setFieldError(identifierError);
-      return;
+    if (method === "username_or_email") {
+      const trimmed = usernameOrEmail.trim();
+      if (!trimmed) {
+        setFieldError("Please enter your username or email address.");
+        return;
+      }
+      if (trimmed.includes("@")) {
+        const emailErr = validateEmail(trimmed);
+        if (emailErr) {
+          setFieldError(emailErr);
+          return;
+        }
+      } else if (trimmed.length < 3) {
+        setFieldError("Username must be at least 3 characters.");
+        return;
+      }
+    } else {
+      const mobileErr = validateMobile(countryCode, localNumber);
+      if (mobileErr) {
+        setFieldError(mobileErr);
+        return;
+      }
     }
+
     if (!password) {
       setError("Password is required.");
       return;
@@ -123,7 +139,7 @@ function LoginPage() {
     <AuthLayout
       eyebrow="Account"
       title="Log in to SocietyOne"
-      subtitle="Use your email or mobile number to continue to your workspace."
+      subtitle="Enter your username or email, otherwise your mobile number, to continue to your workspace."
     >
       {setupAvailable && (
         <Link
@@ -147,28 +163,51 @@ function LoginPage() {
         </Link>
       )}
 
+      {role === "VISITOR" && (
+        <div className="mb-6 rounded-xl border border-brand-orange/30 bg-warning-soft p-4 text-sm leading-6 text-accent-foreground">
+          <p className="font-semibold">Visitors do not need an account.</p>
+          <p className="mt-1 text-xs">You can submit an instant visit request directly without logging in.</p>
+          <Button asChild size="sm" variant="outline" className="mt-3 border-brand-orange/40 font-semibold">
+            <Link to="/invite">Submit Instant Visitor Request →</Link>
+          </Button>
+        </div>
+      )}
+
       <form className="space-y-5" onSubmit={onSubmit}>
         <AuthFormError message={error} />
-        <AuthMethodToggle value={method} onChange={setMethod} />
+        <AuthMethodToggle<"username_or_email" | "mobile">
+          value={method}
+          onChange={(newMethod) => {
+            setMethod(newMethod);
+            setFieldError(null);
+          }}
+          labels={{
+            username_or_email: "Username / Email",
+            mobile: "Mobile Number",
+          }}
+        />
 
-        {method === "email" ? (
+        {method === "username_or_email" ? (
           <div>
-            <Label htmlFor="login-email">
-              <Mail className="mr-1.5 inline size-3.5 -translate-y-0.5 text-muted-foreground" />
-              Email
+            <Label htmlFor="login-username-or-email">
+              <UserRound className="mr-1.5 inline size-3.5 -translate-y-0.5 text-muted-foreground" />
+              Username or Email
               <span className="ml-1 text-destructive">*</span>
             </Label>
             <Input
-              id="login-email"
+              id="login-username-or-email"
               className="mt-2"
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
+              type="text"
+              autoComplete="username"
+              placeholder="Enter username or email address"
+              value={usernameOrEmail}
               disabled={loading}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setUsernameOrEmail(event.target.value);
+                if (fieldError) setFieldError(null);
+              }}
             />
-            {fieldError && method === "email" && (
+            {fieldError && method === "username_or_email" && (
               <p className="mt-2 text-xs font-medium text-destructive">{fieldError}</p>
             )}
           </div>

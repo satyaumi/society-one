@@ -3,7 +3,7 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
 import { AuthLayout } from "@/components/auth/authlayout";
 import { AuthFormError } from "@/components/auth/authformError";
-import { OtpInput } from "@/components/auth/otpinput";
+import { OtpInput, ResendOtpButton } from "@/components/auth/otpinput";
 import { PasswordField } from "@/components/auth/passwordfield";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,13 +33,37 @@ function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  async function onResend() {
+    if (!identifier.trim()) {
+      setError("Please enter your email or mobile number to receive an OTP.");
+      return;
+    }
+    setError(null);
+    setResendMessage(null);
+    setResending(true);
+    try {
+      await authService.resendOtp({
+        identifier: identifier.trim(),
+        purpose: "PASSWORD_RESET",
+      });
+      setResendMessage("OTP sent successfully to your email.");
+    } catch (err) {
+      setError(toUserError(err));
+    } finally {
+      setResending(false);
+    }
+  }
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    setResendMessage(null);
     const next: Record<string, string> = {};
     if (!identifier.trim()) next.identifier = "Email or mobile number is required.";
     if (otp.replace(/\D/g, "").length < 6) next.otp = "Enter the 6-digit code.";
@@ -57,7 +81,7 @@ function ResetPasswordPage() {
       });
       setSuccess(true);
       window.setTimeout(() => {
-        void navigate({ to: "/login" });
+        void navigate({ to: "/login", search: { role: undefined } });
       }, 1200);
     } catch (err) {
       setError(toUserError(err));
@@ -74,6 +98,12 @@ function ResetPasswordPage() {
     >
       <form className="space-y-5" onSubmit={onSubmit}>
         <AuthFormError message={error} />
+        {resendMessage && (
+          <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm text-success">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+            {resendMessage}
+          </div>
+        )}
         {success && (
           <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm text-success">
             <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
@@ -93,7 +123,17 @@ function ResetPasswordPage() {
             <p className="mt-2 text-xs font-medium text-destructive">{fieldErrors.identifier}</p>
           )}
         </div>
-        <OtpInput value={otp} onChange={setOtp} error={fieldErrors.otp} disabled={loading || success} />
+        <div>
+          <OtpInput value={otp} onChange={setOtp} error={fieldErrors.otp} disabled={loading || success} />
+          <div className="mt-2 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Didn't receive the code?</span>
+            <ResendOtpButton
+              onResend={onResend}
+              isSending={resending}
+              disabled={loading || success || !identifier.trim()}
+            />
+          </div>
+        </div>
         <PasswordField
           id="reset-password"
           label="New password"
@@ -123,6 +163,7 @@ function ResetPasswordPage() {
         </Button>
         <Link
           to="/login"
+          search={{ role: undefined }}
           className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
@@ -132,3 +173,4 @@ function ResetPasswordPage() {
     </AuthLayout>
   );
 }
+

@@ -16,9 +16,11 @@ export type RequestStatus =
   | "PENDING_RESIDENT"
   | "APPROVED_BY_RESIDENT"
   | "DENIED_BY_RESIDENT"
+  | "REJECTED_BY_RESIDENT"
   | "PENDING_SECURITY"
   | "ACCEPTED_BY_SECURITY"
   | "DENIED_BY_SECURITY"
+  | "REJECTED_BY_SECURITY"
   | "CANCELLED"
   | "EXPIRED";
 export type VisitStatus =
@@ -26,6 +28,7 @@ export type VisitStatus =
   | "WAITING_AT_GATE"
   | "CHECKED_IN"
   | "CHECKED_OUT"
+  | "CANCELLED"
   | "NO_SHOW";
 
 export interface User {
@@ -36,6 +39,7 @@ export interface User {
   mobile?: string;
   role: Role;
   avatar?: string;
+  profilePhotoUrl?: string;
   flatId?: string;
   flatNumber?: string;
   lastLoginAt?: string;
@@ -156,4 +160,79 @@ export interface DashboardSummary {
   value: string;
   helper: string;
   tone: "blue" | "orange" | "green" | "slate";
+}
+
+export type AuthorizationType = "PERMANENT" | "TEMPORARY_TODAY" | "CUSTOM_EXPIRY";
+export type AuthorizationStatus = "ACTIVE" | "DISABLED" | "EXPIRED" | "REVOKED";
+
+export interface VisitorAuthorization {
+  id: string;
+  visitorId: string;
+  visitorName: string;
+  visitorMobile: string;
+  visitorType: VisitorType;
+  vehicleNumber?: string;
+  societyId: string;
+  societyName: string;
+  flatId: string;
+  flatNumber: string;
+  residentId: string;
+  residentName: string;
+  authorizationType: AuthorizationType;
+  status: AuthorizationStatus;
+  validFrom: string;
+  validUntil?: string;
+  notes?: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface PublicResidentItem {
+  id: number;
+  fullName: string;
+  username: string;
+}
+
+export interface PublicFlatItem {
+  id: number;
+  number: string;
+  residents: PublicResidentItem[];
+}
+
+export interface PublicFloorItem {
+  id: number;
+  floorNumber: number;
+  flats: PublicFlatItem[];
+}
+
+export interface PublicBuildingItem {
+  id: number;
+  name: string;
+  floors: PublicFloorItem[];
+}
+
+export interface PublicSocietyItem {
+  id: number;
+  name: string;
+  address?: string;
+  buildings: PublicBuildingItem[];
+}
+
+export interface PublicStructureResponse {
+  societies: PublicSocietyItem[];
+}
+
+export interface PublicVisitRequestInput {
+  fullName: string;
+  mobileNumber: string;
+  purpose: string;
+  visitorType?: VisitorType;
+  vehicleNumber?: string;
+  societyId: number;
+  buildingId?: number;
+  floorId?: number;
+  flatId: number;
+  residentId: number;
+  expectedDate?: string;
+  expectedTime?: string;
 }

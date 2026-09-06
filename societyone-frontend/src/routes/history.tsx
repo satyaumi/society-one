@@ -35,8 +35,8 @@ function HistoryPage() {
     let mounted = true;
     Promise.all([
       authService.getCurrentUser(),
-      visitorService.listRequests("RESIDENT"),
-      auditService.list(),
+      visitorService.listRequests(),
+      auditService.list().catch(() => [] as AuditEvent[]),
     ]).then(([currentUser, items, events]) => {
       if (mounted) {
         setUser(currentUser);

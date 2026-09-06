@@ -17,15 +17,32 @@ import {
   Users,
   X,
 } from "lucide-react";
-import logoAsset from "@/assets/societyone-logo.png.asset.json";
+import societyOneLogo from "@/assets/societyone-logo.png";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { resolveMediaUrl } from "@/lib/media-url";
 import { useAuth } from "@/lib/auth/auth-store";
 import { authService, notificationService, realtimeEvents } from "@/services";
 import type { Notification, Role, User, VisitRequest } from "@/types/domain";
 
-export type AppPath = "/dashboard" | "/requests" | "/invite" | "/regular-visitors" | "/history" | "/notifications" | "/security/online" | "/security/at-security" | "/security/regular" | "/admin" | "/admin/society" | "/admin/visitors" | "/settings";
+export type AppPath =
+  | "/dashboard"
+  | "/requests"
+  | "/invite"
+  | "/regular-visitors"
+  | "/history"
+  | "/notifications"
+  | "/security/online"
+  | "/security/at-security"
+  | "/security/regular"
+  | "/admin"
+  | "/admin/residents"
+  | "/admin/security-staff"
+  | "/admin/society"
+  | "/admin/visitors"
+  | "/settings";
 
 const roleLabels: Record<Role, string> = { VISITOR: "Visitor", RESIDENT: "Resident", SECURITY: "Security", ADMIN: "Admin" };
 const navByRole: Record<Role, { label: string; to: AppPath; icon: ReactNode }[]> = {
@@ -51,6 +68,8 @@ const navByRole: Record<Role, { label: string; to: AppPath; icon: ReactNode }[]>
   ],
   ADMIN: [
     { label: "Overview", to: "/dashboard", icon: <Home /> },
+    { label: "Residents", to: "/admin/residents", icon: <Users /> },
+    { label: "Security staff", to: "/admin/security-staff", icon: <ShieldCheck /> },
     { label: "Society structure", to: "/admin/society", icon: <Building2 /> },
     { label: "Visitor activity", to: "/admin/visitors", icon: <ClipboardCheck /> },
     { label: "Audit history", to: "/history", icon: <FileClock /> },
@@ -92,7 +111,7 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
   async function signOut() {
     await authService.logout();
     setMobileOpen(false);
-    await router.navigate({ to: "/login" });
+    await router.navigate({ to: "/login", search: { role: undefined } });
   }
 
   return (
@@ -105,7 +124,7 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
       >
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border px-6 sm:h-20">
           <Link to="/dashboard" className="flex items-center gap-3" aria-label="SocietyOne dashboard">
-            <img src={logoAsset.url} alt="SocietyOne" className="size-9 rounded-lg object-cover" />
+            <img src={societyOneLogo} alt="SocietyOne" className="size-9 rounded-lg object-cover" />
             <span className="font-display text-lg font-bold">
               Society<span className="text-sidebar-primary">One</span>
             </span>
@@ -125,9 +144,16 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
             SocietyOne workspace
           </p>
           <div className="mt-3 flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-full bg-sidebar-primary font-display font-bold text-sidebar-primary-foreground">
-              {user?.name?.slice(0, 1) ?? "S"}
-            </div>
+            <Avatar className="size-10 shrink-0 border border-sidebar-border shadow-xs">
+              <AvatarImage
+                src={resolveMediaUrl(user?.avatar || user?.profilePhotoUrl)}
+                alt={user?.name ?? "User"}
+                className="size-full aspect-square object-cover object-center"
+              />
+              <AvatarFallback className="bg-sidebar-primary font-display font-bold text-sidebar-primary-foreground">
+                {user?.name?.slice(0, 1) ?? "S"}
+              </AvatarFallback>
+            </Avatar>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{user?.name ?? "Loading profile"}</p>
               <p className="text-xs text-sidebar-foreground/60">{roleLabels[role]}</p>
@@ -215,7 +241,17 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
               {unreadCount > 0 && <span className="absolute right-1 top-1 size-2 rounded-full bg-brand-orange" />}
             </Button>
             <div className="hidden h-8 w-px bg-border sm:block" />
-            <Link to="/settings" className="hidden items-center gap-2 text-right sm:flex">
+            <Link to="/settings" className="hidden items-center gap-2.5 text-right sm:flex hover:opacity-90 transition-opacity">
+              <Avatar className="size-7 shrink-0 border border-border shadow-xs">
+                <AvatarImage
+                  src={resolveMediaUrl(user?.avatar || user?.profilePhotoUrl)}
+                  alt={user?.name ?? "User"}
+                  className="size-full aspect-square object-cover object-center"
+                />
+                <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+                  {user?.name?.slice(0, 1) ?? "U"}
+                </AvatarFallback>
+              </Avatar>
               <p className="max-w-[10rem] truncate text-sm font-semibold">{user?.name}</p>
               <ChevronDown className="size-4 text-muted-foreground" />
             </Link>
@@ -240,7 +276,7 @@ export function SectionHeading({ title, action }: { title: string; action?: Reac
 
 export function StatGrid({ stats }: { stats: { label: string; value: string; helper: string; tone: "blue" | "orange" | "green" | "slate" }[] }) { const tones = { blue: "bg-info-soft text-brand-blue", orange: "bg-warning-soft text-accent-foreground", green: "bg-success-soft text-success", slate: "bg-secondary text-secondary-foreground" }; return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{stats.map((stat) => <div key={stat.label} className="rounded-xl border border-border bg-card p-5 shadow-sm"><div className="flex items-start justify-between gap-2"><p className="text-sm text-muted-foreground">{stat.label}</p><span className={cn("grid size-8 place-items-center rounded-lg text-xs font-bold", tones[stat.tone])}><span aria-hidden="true">●</span></span></div><p className="mt-4 font-display text-3xl font-bold">{stat.value}</p><p className="mt-1 text-xs text-muted-foreground">{stat.helper}</p></div>)}</div>; }
 
-export function StatusBadge({ status }: { status: VisitRequest["requestStatus"] | VisitRequest["visitStatus"] }) { const labels: Record<string, string> = { PENDING_RESIDENT: "Pending resident", APPROVED_BY_RESIDENT: "Resident approved", DENIED_BY_RESIDENT: "Resident denied", PENDING_SECURITY: "Pending security", ACCEPTED_BY_SECURITY: "Entry accepted", DENIED_BY_SECURITY: "Entry denied", CANCELLED: "Cancelled", EXPIRED: "Expired", EXPECTED: "Expected", WAITING_AT_GATE: "Waiting at gate", CHECKED_IN: "Checked in", CHECKED_OUT: "Checked out", NO_SHOW: "No show" }; const positive = ["APPROVED_BY_RESIDENT", "ACCEPTED_BY_SECURITY", "CHECKED_IN", "CHECKED_OUT"].includes(status); const warning = ["PENDING_RESIDENT", "PENDING_SECURITY", "EXPECTED", "WAITING_AT_GATE"].includes(status); return <Badge variant={positive ? "default" : warning ? "secondary" : "destructive"} className={cn(positive && "bg-success text-primary-foreground", warning && "bg-warning-soft text-accent-foreground")}>{labels[status] ?? status}</Badge>; }
+export function StatusBadge({ status }: { status: VisitRequest["requestStatus"] | VisitRequest["visitStatus"] }) { const labels: Record<string, string> = { PENDING_RESIDENT: "Pending resident", APPROVED_BY_RESIDENT: "Resident approved", DENIED_BY_RESIDENT: "Resident denied", REJECTED_BY_RESIDENT: "Resident denied", PENDING_SECURITY: "Pending security", ACCEPTED_BY_SECURITY: "Entry accepted", DENIED_BY_SECURITY: "Entry denied", REJECTED_BY_SECURITY: "Entry denied", CANCELLED: "Cancelled", EXPIRED: "Expired", EXPECTED: "Expected", WAITING_AT_GATE: "Waiting at gate", CHECKED_IN: "Checked in", CHECKED_OUT: "Checked out", NO_SHOW: "No show" }; const positive = ["APPROVED_BY_RESIDENT", "ACCEPTED_BY_SECURITY", "CHECKED_IN", "CHECKED_OUT"].includes(status); const warning = ["PENDING_RESIDENT", "PENDING_SECURITY", "EXPECTED", "WAITING_AT_GATE"].includes(status); return <Badge variant={positive ? "default" : warning ? "secondary" : "destructive"} className={cn(positive && "bg-success text-primary-foreground", warning && "bg-warning-soft text-accent-foreground")}>{labels[status] ?? status}</Badge>; }
 
 export function RequestRow({ request, actions }: { request: VisitRequest; actions?: ReactNode }) { return <div className="grid gap-4 border-b border-border py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div className="flex min-w-0 items-center gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-full bg-info-soft font-display font-bold text-brand-blue">{request.visitor.name.slice(0, 1)}</div><div className="min-w-0"><p className="truncate font-semibold">{request.visitor.name}</p><p className="mt-1 text-xs text-muted-foreground">{request.expectedDate} · {request.expectedTime} · {request.flat.number}</p><div className="mt-2 flex flex-wrap gap-2"><StatusBadge status={request.requestStatus} /><StatusBadge status={request.visitStatus} /></div></div></div><div className="flex shrink-0 items-center gap-2">{actions}</div></div>; }
 
