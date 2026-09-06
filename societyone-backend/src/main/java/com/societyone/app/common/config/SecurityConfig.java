@@ -120,6 +120,8 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health").permitAll()
+                        .requestMatchers("/api/public/**").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers(
                                 "/api/auth/signup",
                                 "/api/auth/login",
@@ -152,8 +154,29 @@ public class SecurityConfig {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
+        configuration.setAllowedOriginPatterns(
+                List.of(
+                        "http://localhost:*",
+                        "http://127.0.0.1:*",
+                        "http://localhost",
+                        "http://127.0.0.1"
+                )
+        );
+
         configuration.setAllowedOrigins(
-                List.of("http://localhost:5173")
+                List.of(
+                        "http://localhost:5173",
+                        "http://localhost:5174",
+                        "http://localhost:5175",
+                        "http://localhost:5176",
+                        "http://localhost:4173",
+                        "http://localhost:3000",
+                        "http://127.0.0.1:5173",
+                        "http://127.0.0.1:5174",
+                        "http://127.0.0.1:5175",
+                        "http://127.0.0.1:5176",
+                        "http://127.0.0.1:4173"
+                )
         );
 
         configuration.setAllowedMethods(

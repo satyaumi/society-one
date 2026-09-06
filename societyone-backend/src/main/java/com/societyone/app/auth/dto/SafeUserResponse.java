@@ -10,9 +10,12 @@ public record SafeUserResponse(
         String mobile,
         String role,
         String accountStatus,
-        String lastLoginAt
+        String lastLoginAt,
+        String profilePhotoUrl,
+        String avatar
 ) {
     public static SafeUserResponse from(User user) {
+        String photo = user.getProfilePhotoUrl();
         return new SafeUserResponse(
                 String.valueOf(user.getId()),
                 user.getFullName(),
@@ -23,7 +26,9 @@ public record SafeUserResponse(
                 user.getAccountStatus().name(),
                 user.getLastLoginAt() == null
                         ? null
-                        : user.getLastLoginAt().toString()
+                        : user.getLastLoginAt().toString(),
+                photo,
+                photo
         );
     }
 }

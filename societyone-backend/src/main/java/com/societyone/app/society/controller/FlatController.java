@@ -1,5 +1,7 @@
 package com.societyone.app.society.controller;
 
+import com.societyone.app.audit.entity.AuditAction;
+import com.societyone.app.audit.service.AuditService;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.common.api.ApiResponse;
 import com.societyone.app.common.security.CurrentUser;
@@ -17,9 +19,17 @@ import org.springframework.web.bind.annotation.*;
 public class FlatController {
 
     private final SocietyStructureService societyStructureService;
+    private final AuditService auditService;
+    private final com.societyone.app.society.repository.FlatRepository flatRepository;
 
-    public FlatController(SocietyStructureService societyStructureService) {
+    public FlatController(
+            SocietyStructureService societyStructureService,
+            AuditService auditService,
+            com.societyone.app.society.repository.FlatRepository flatRepository
+    ) {
         this.societyStructureService = societyStructureService;
+        this.auditService = auditService;
+        this.flatRepository = flatRepository;
     }
 
     @PutMapping("/{flatId}")
@@ -29,8 +39,25 @@ public class FlatController {
             @Valid @RequestBody FlatRequest request
     ) {
         User actor = CurrentUser.require(authentication);
+        FlatResponse flatResp = societyStructureService.updateFlat(actor, flatId, request);
+        Long societyId = null;
+        try {
+            var flat = flatRepository.findById(flatId).orElse(null);
+            if (flat != null && flat.getSociety() != null) {
+                societyId = flat.getSociety().getId();
+            }
+        } catch (Exception ignored) {
+        }
+        auditService.record(
+                actor.getId(),
+                societyId,
+                AuditAction.FLAT_UPDATED,
+                "FLAT",
+                flatId,
+                "Updated flat"
+        );
         return ApiResponse.success(
-                societyStructureService.updateFlat(actor, flatId, request),
+                flatResp,
                 "Flat updated"
         );
     }

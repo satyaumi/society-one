@@ -7,22 +7,30 @@ import com.societyone.app.auth.dto.LoginRequest;
 import com.societyone.app.auth.dto.ResendOtpRequest;
 import com.societyone.app.auth.dto.ResetPasswordRequest;
 import com.societyone.app.auth.dto.SafeUserResponse;
-import com.societyone.app.auth.dto.SignupRequest;
-import com.societyone.app.auth.dto.VerifyOtpRequest;
+import com.societyone.app.auth.dto.*;
 import com.societyone.app.auth.entity.AccountStatus;
 import com.societyone.app.auth.entity.Role;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.auth.repository.UserRepository;
 import com.societyone.app.auth.security.JwtService;
+import com.societyone.app.common.email.EmailService;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.OffsetDateTime;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class AuthService {
@@ -31,17 +39,20 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final OtpService otpService;
+    private final EmailService emailService;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            OtpService otpService
+            OtpService otpService,
+            EmailService emailService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.otpService = otpService;
+        this.emailService = emailService;
     }
 
     // -------------------------- Public signup --------------------------
@@ -87,7 +98,24 @@ public class AuthService {
             );
         }
 
-        User saved = createUser(request, Role.VISITOR, AccountStatus.ACTIVE);
+        if (request.intendedRole() != null && !request.intendedRole().isBlank()) {
+            String ir = request.intendedRole().trim().toUpperCase(Locale.ROOT);
+            if ("VISITOR".equals(ir)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Visitors do not require an account. Please use the public visit request page."
+                );
+            }
+            if (!"RESIDENT".equals(ir)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Self-registration is only allowed for the RESIDENT role"
+                );
+            }
+        }
+        Role targetRole = Role.RESIDENT;
+
+        User saved = createUser(request, targetRole, AccountStatus.ACTIVE);
 
         String token = jwtService.generateToken(
                 saved.getId(),
@@ -217,36 +245,102 @@ public class AuthService {
         return userRepository.save(user);
     }
 
+    public Optional<User> findUserByMobile(String mobile) {
+        if (mobile == null || mobile.isBlank()) {
+            return Optional.empty();
+        }
+        String normalized = normalizeMobile(mobile);
+        if (normalized == null || normalized.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<User> u = userRepository.findByMobileNumber(normalized);
+        if (u.isPresent()) {
+            return u;
+        }
+        if (normalized.startsWith("+91") && normalized.length() > 3) {
+            String without91 = normalized.substring(3);
+            u = userRepository.findByMobileNumber(without91);
+            if (u.isPresent()) {
+                return u;
+            }
+        } else if (!normalized.startsWith("+") && normalized.length() == 10) {
+            u = userRepository.findByMobileNumber("+91" + normalized);
+            if (u.isPresent()) {
+                return u;
+            }
+        }
+        return Optional.empty();
+    }
+
+    public Optional<User> findUserByIdentifier(String method, String rawIdentifier) {
+        if (rawIdentifier == null || rawIdentifier.isBlank()) {
+            return Optional.empty();
+        }
+        String id = rawIdentifier.trim();
+        String m = method == null ? "" : method.trim().toLowerCase(Locale.ROOT);
+
+        // 1. If method is mobile
+        if ("mobile".equals(m)) {
+            return findUserByMobile(id)
+                    .or(() -> userRepository.findByUsernameIgnoreCase(id))
+                    .or(() -> userRepository.findByEmailIgnoreCase(id));
+        }
+
+        // 2. If method is email
+        if ("email".equals(m)) {
+            return userRepository.findByEmailIgnoreCase(id)
+                    .or(() -> userRepository.findByUsernameIgnoreCase(id))
+                    .or(() -> findUserByMobile(id));
+        }
+
+        // 3. If method is username
+        if ("username".equals(m)) {
+            return userRepository.findByUsernameIgnoreCase(id)
+                    .or(() -> userRepository.findByEmailIgnoreCase(id))
+                    .or(() -> findUserByMobile(id));
+        }
+
+        // 4. Default ("username_or_email", or general identifier)
+        if (id.contains("@")) {
+            return userRepository.findByEmailIgnoreCase(id)
+                    .or(() -> userRepository.findByUsernameIgnoreCase(id))
+                    .or(() -> findUserByMobile(id));
+        }
+
+        // Try username first
+        Optional<User> byUsername = userRepository.findByUsernameIgnoreCase(id);
+        if (byUsername.isPresent()) {
+            return byUsername;
+        }
+
+        // Try mobile next
+        Optional<User> byMobile = findUserByMobile(id);
+        if (byMobile.isPresent()) {
+            return byMobile;
+        }
+
+        // Fallback to email
+        return userRepository.findByEmailIgnoreCase(id);
+    }
+
     public AuthResponse login(LoginRequest request) {
 
-        String method = request.method()
-                .trim()
-                .toLowerCase(Locale.ROOT);
+        String identifier = request.identifier() != null ? request.identifier().trim() : "";
 
-        String identifier = request.identifier().trim();
-
-        User user = switch (method) {
-
-            case "email" -> userRepository
-                    .findByEmailIgnoreCase(identifier)
-                    .orElseThrow(this::invalidCredentials);
-
-            case "mobile" -> userRepository
-                    .findByMobileNumber(
-                            normalizeMobile(identifier)
-                    )
-                    .orElseThrow(this::invalidCredentials);
-
-            default -> throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Authentication method must be email or mobile"
-            );
-        };
+        User user = findUserByIdentifier(request.method(), identifier)
+                .orElseThrow(this::invalidCredentials);
 
         if (user.getAccountStatus() != AccountStatus.ACTIVE) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Account is not active"
+            );
+        }
+
+        if (user.getRole() == Role.VISITOR) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Visitors do not require an account. Please use the public visit request page."
             );
         }
 
@@ -285,21 +379,20 @@ public class AuthService {
     public ForgotPasswordResponse forgotPassword(ForgotPasswordRequest request) {
         String method = request.method() == null ? "" : request.method().trim().toLowerCase(Locale.ROOT);
         String identifier = request.identifier() == null ? "" : request.identifier().trim();
-        User user = null;
-        switch (method) {
-            case "email" -> user = userRepository.findByEmailIgnoreCase(identifier).orElse(null);
-            case "mobile" -> user = userRepository.findByMobileNumber(normalizeMobile(identifier)).orElse(null);
-            default -> {
-                // Still echo identifier back to avoid enumerating method validity
+        User user = findUserByIdentifier(method, identifier).orElse(null);
+
+        if (user != null) {
+            String code = otpService.generateOtp(identifier, "PASSWORD_RESET");
+            String targetEmail = user.getEmail() != null && !user.getEmail().isBlank()
+                    ? user.getEmail()
+                    : (identifier.contains("@") ? identifier : null);
+            if (targetEmail != null) {
+                emailService.sendOtpEmail(targetEmail, code, "PASSWORD_RESET", OtpService.TTL_MINUTES);
             }
         }
-        if (user != null) {
-            String userKey = (user.getEmail() != null) ? user.getEmail() : user.getMobileNumber();
-            otpService.generateOtp(userKey != null ? userKey : identifier, "PASSWORD_RESET");
-        }
+
         // Always return 200 with original identifier to avoid user enumeration.
-        String echoId = identifier;
-        return new ForgotPasswordResponse(echoId);
+        return new ForgotPasswordResponse(identifier);
     }
 
     public Object verifyOtp(VerifyOtpRequest request) {
@@ -314,12 +407,22 @@ public class AuthService {
             case VALID -> { }
             case EXPIRED -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OTP expired");
             case ALREADY_CONSUMED -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OTP has already been used");
+            case TOO_MANY_ATTEMPTS -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Too many failed attempts. Please request a new OTP.");
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid OTP");
+        }
+
+        User user = findUserByIdentifier(identifier);
+        if (user != null) {
+            if ("SIGNUP".equals(purpose) || "EMAIL_VERIFICATION".equals(purpose) || "PASSWORD_RESET".equals(purpose)) {
+                if (identifier.contains("@")) {
+                    user.setEmailVerified(true);
+                    userRepository.save(user);
+                }
+            }
         }
 
         if ("SIGNUP".equals(purpose) || "LOGIN".equals(purpose)) {
             // For SIGNUP/LOGIN: find the user by identifier and issue a session token.
-            User user = findUserByIdentifier(identifier);
             if (user == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid OTP");
             }
@@ -348,11 +451,28 @@ public class AuthService {
         String purpose = request.purpose() == null || request.purpose().isBlank()
                 ? "PASSWORD_RESET"
                 : request.purpose().trim().toUpperCase(Locale.ROOT);
-        otpService.invalidate(identifier, purpose);
+
+        long cooldown = otpService.getRemainingCooldownSeconds(identifier, purpose);
+        if (cooldown > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Please wait " + cooldown + " seconds before requesting another OTP."
+            );
+        }
+
         User user = findUserByIdentifier(identifier);
         if (user != null) {
-            String userKey = (user.getEmail() != null) ? user.getEmail() : user.getMobileNumber();
-            otpService.generateOtp(userKey != null ? userKey : identifier, purpose);
+            String code = otpService.generateOtp(identifier, purpose);
+            String targetEmail = user.getEmail() != null && !user.getEmail().isBlank()
+                    ? user.getEmail()
+                    : (identifier.contains("@") ? identifier : null);
+            if (targetEmail != null) {
+                emailService.sendOtpEmail(targetEmail, code, purpose, OtpService.TTL_MINUTES);
+            }
+        } else if (identifier.contains("@")) {
+            // Also generate and attempt send if identifier looks like email to prevent enumeration
+            String code = otpService.generateOtp(identifier, purpose);
+            emailService.sendOtpEmail(identifier, code, purpose, OtpService.TTL_MINUTES);
         }
     }
 
@@ -368,11 +488,12 @@ public class AuthService {
             );
         }
 
-        OtpService.VerifyResult result = otpService.verifyOtp(identifier, purpose, otp);
+        OtpService.VerifyResult result = otpService.consumeOtp(identifier, purpose, otp);
         switch (result) {
             case VALID -> { }
             case EXPIRED -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OTP expired");
             case ALREADY_CONSUMED -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OTP has already been used");
+            case TOO_MANY_ATTEMPTS -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Too many failed attempts. Please request a new OTP.");
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid OTP");
         }
 
@@ -382,9 +503,126 @@ public class AuthService {
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        if (identifier.contains("@")) {
+            user.setEmailVerified(true);
+        }
         userRepository.save(user);
         // Invalidate any other OTP entries for the same identifier so it cannot be reused.
         otpService.invalidate(identifier, purpose);
+    }
+
+    // ---------------- Profile & Settings ----------------
+
+    public SafeUserResponse updateProfile(User user, UpdateProfileRequest request) {
+        String newUsername = request.username().trim();
+        if (!newUsername.equalsIgnoreCase(user.getUsername())) {
+            if (userRepository.existsByUsernameIgnoreCase(newUsername)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Username is already taken");
+            }
+            user.setUsername(newUsername);
+        }
+        user.setFullName(request.fullName().trim());
+        User saved = userRepository.save(user);
+        return SafeUserResponse.from(saved);
+    }
+
+    public void changePassword(User user, ChangePasswordRequest request) {
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect");
+        }
+        if (!passwordMeetsPolicy(request.newPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password does not meet requirements");
+        }
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
+    }
+
+    public SafeUserResponse changeEmail(User user, ChangeEmailRequest request) {
+        String newEmail = normalize(request.newEmail());
+        if (newEmail != null && !newEmail.equalsIgnoreCase(user.getEmail())) {
+            if (userRepository.existsByEmailIgnoreCase(newEmail)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
+            }
+            user.setEmail(newEmail);
+            user.setEmailVerified(false);
+            User saved = userRepository.save(user);
+            String code = otpService.generateOtp(newEmail, "EMAIL_VERIFICATION");
+            emailService.sendOtpEmail(newEmail, code, "EMAIL_VERIFICATION", OtpService.TTL_MINUTES);
+            return SafeUserResponse.from(saved);
+        }
+        return SafeUserResponse.from(user);
+    }
+
+    public SafeUserResponse changeMobile(User user, ChangeMobileRequest request) {
+        String newMobile = normalizeMobile(request.newMobileNumber());
+        if (newMobile != null && !newMobile.equals(user.getMobileNumber())) {
+            if (userRepository.existsByMobileNumber(newMobile)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Mobile number is already registered");
+            }
+            user.setMobileNumber(newMobile);
+            user.setMobileVerified(false);
+            User saved = userRepository.save(user);
+            return SafeUserResponse.from(saved);
+        }
+        return SafeUserResponse.from(user);
+    }
+
+    public SafeUserResponse uploadProfilePhoto(User user, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No file uploaded");
+        }
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File size must be under 5MB");
+        }
+        String contentType = file.getContentType();
+        Set<String> allowedTypes = Set.of("image/jpeg", "image/png", "image/webp", "image/gif");
+        if (contentType == null || !allowedTypes.contains(contentType.toLowerCase(Locale.ROOT))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only JPEG, PNG, WEBP, and GIF images are allowed");
+        }
+
+        try {
+            Path uploadDir = Paths.get("uploads", "avatars");
+            if (!Files.exists(uploadDir)) {
+                Files.createDirectories(uploadDir);
+            }
+            String extension = switch (contentType.toLowerCase(Locale.ROOT)) {
+                case "image/png" -> ".png";
+                case "image/webp" -> ".webp";
+                case "image/gif" -> ".gif";
+                default -> ".jpg";
+            };
+            String filename = "avatar_" + user.getId() + "_" + System.currentTimeMillis() + extension;
+            Path targetPath = uploadDir.resolve(filename);
+            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+
+            user.setProfilePhotoUrl("/uploads/avatars/" + filename);
+            User saved = userRepository.save(user);
+            return SafeUserResponse.from(saved);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save profile image");
+        }
+    }
+
+    public SafeUserResponse deleteProfilePhoto(User user) {
+        String currentUrl = user.getProfilePhotoUrl();
+        if (currentUrl != null && currentUrl.startsWith("/uploads/avatars/")) {
+            try {
+                Path filePath = Paths.get(currentUrl.substring(1));
+                Files.deleteIfExists(filePath);
+            } catch (Exception ignored) {
+            }
+        }
+        user.setProfilePhotoUrl(null);
+        User saved = userRepository.save(user);
+        return SafeUserResponse.from(saved);
+    }
+
+    public void deleteAccount(User user, DeleteAccountRequest request) {
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password is incorrect");
+        }
+        user.setAccountStatus(AccountStatus.INACTIVE);
+        userRepository.save(user);
     }
 
     // ---------------- Helpers ----------------

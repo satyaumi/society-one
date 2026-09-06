@@ -12,7 +12,8 @@ import java.util.Optional;
 public interface SocietyRepository extends JpaRepository<Society, Long> {
 
     List<Society> findByOwnerOrderByNameAsc(User owner);
-
+    
+    Optional<Society> findByOwner(User owner);
     Optional<Society> findByIdAndOwner(Long id, User owner);
 
     boolean existsByOwner(User owner);

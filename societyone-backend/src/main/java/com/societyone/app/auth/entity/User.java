@@ -56,6 +56,9 @@ public class User {
     @Column(name = "last_login_at")
     private OffsetDateTime lastLoginAt;
 
+    @Column(name = "profile_photo_url", length = 500)
+    private String profilePhotoUrl;
+
     @PrePersist
     void onCreate() {
         OffsetDateTime now = OffsetDateTime.now();
@@ -158,5 +161,13 @@ public class User {
 
     public void setLastLoginAt(OffsetDateTime lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
+    }
+
+    public String getProfilePhotoUrl() {
+        return profilePhotoUrl;
+    }
+
+    public void setProfilePhotoUrl(String profilePhotoUrl) {
+        this.profilePhotoUrl = profilePhotoUrl;
     }
 }

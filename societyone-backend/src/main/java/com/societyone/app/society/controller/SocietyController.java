@@ -1,5 +1,7 @@
 package com.societyone.app.society.controller;
 
+import com.societyone.app.audit.entity.AuditAction;
+import com.societyone.app.audit.service.AuditService;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.common.api.ApiResponse;
 import com.societyone.app.common.security.CurrentUser;
@@ -20,9 +22,11 @@ import java.util.List;
 public class SocietyController {
 
     private final SocietyStructureService societyStructureService;
+    private final AuditService auditService;
 
-    public SocietyController(SocietyStructureService societyStructureService) {
+    public SocietyController(SocietyStructureService societyStructureService, AuditService auditService) {
         this.societyStructureService = societyStructureService;
+        this.auditService = auditService;
     }
 
     @GetMapping
@@ -47,8 +51,18 @@ public class SocietyController {
             @Valid @RequestBody SocietyRequest request
     ) {
         User actor = CurrentUser.require(authentication);
+        SocietyResponse resp = societyStructureService.createSociety(actor, request);
+        Long societyId = Long.parseLong(resp.id());
+        auditService.record(
+                actor.getId(),
+                societyId,
+                AuditAction.SOCIETY_CREATED,
+                "SOCIETY",
+                societyId,
+                "Created society " + resp.name()
+        );
         return ApiResponse.success(
-                societyStructureService.createSociety(actor, request),
+                resp,
                 "Society created"
         );
     }
@@ -61,8 +75,18 @@ public class SocietyController {
             @Valid @RequestBody SocietyRequest request
     ) {
         User actor = CurrentUser.require(authentication);
+        SocietyResponse resp = societyStructureService.updateSociety(actor, societyId, request);
+        Long parsedSocietyId = Long.parseLong(resp.id());
+        auditService.record(
+                actor.getId(),
+                parsedSocietyId,
+                AuditAction.SOCIETY_UPDATED,
+                "SOCIETY",
+                parsedSocietyId,
+                "Updated society " + resp.name()
+        );
         return ApiResponse.success(
-                societyStructureService.updateSociety(actor, societyId, request),
+                resp,
                 "Society updated"
         );
     }
@@ -75,8 +99,18 @@ public class SocietyController {
             @Valid @RequestBody BuildingRequest request
     ) {
         User actor = CurrentUser.require(authentication);
+        BuildingResponse buildingResp = societyStructureService.createBuilding(actor, societyId, request);
+        Long entityId = Long.parseLong(buildingResp.id());
+        auditService.record(
+                actor.getId(),
+                societyId,
+                AuditAction.BUILDING_CREATED,
+                "BUILDING",
+                entityId,
+                "Created building " + buildingResp.name()
+        );
         return ApiResponse.success(
-                societyStructureService.createBuilding(actor, societyId, request),
+                buildingResp,
                 "Building created"
         );
     }

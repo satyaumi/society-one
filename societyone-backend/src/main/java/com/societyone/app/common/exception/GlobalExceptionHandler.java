@@ -94,13 +94,17 @@ public class GlobalExceptionHandler {
         String code = switch (status) {
             case BAD_REQUEST -> switch (reason) {
                 case "Authentication method must be email or mobile" -> "BAD_REQUEST";
-                case "Password does not meet requirements" -> "PASSWORD_TOO_WEAK";
+                case "Password does not meet requirements",
+                     "Password is too weak" -> "WEAK_PASSWORD";
                 case "At least one of email or mobile number is required" -> "VALIDATION_ERROR";
                 case "Invalid OTP" -> "OTP_INVALID";
                 case "OTP expired" -> "OTP_EXPIRED";
                 case "OTP has already been used" -> "OTP_INVALID";
+                case "Too many failed attempts. Please request a new OTP." -> "OTP_MAX_ATTEMPTS";
+                case "Invalid visitor request state transition" -> "INVALID_STATE_TRANSITION";
                 default -> "BAD_REQUEST";
             };
+            case TOO_MANY_REQUESTS -> "OTP_COOLDOWN";
             case UNAUTHORIZED -> {
                 if ("Invalid credentials".equals(reason)) {
                     yield "INVALID_CREDENTIALS";
@@ -108,7 +112,15 @@ public class GlobalExceptionHandler {
                 yield "UNAUTHORIZED";
             }
             case FORBIDDEN -> "FORBIDDEN";
-            case NOT_FOUND -> "NOT_FOUND";
+            case NOT_FOUND -> switch (reason) {
+                case "User not found" -> "USER_NOT_FOUND";
+                case "Flat not found" -> "FLAT_NOT_FOUND";
+                case "Resident profile not found" -> "RESIDENT_NOT_FOUND";
+                case "Security staff profile not found" -> "SECURITY_STAFF_NOT_FOUND";
+                case "Visitor not found" -> "VISITOR_NOT_FOUND";
+                case "Visit request not found" -> "REQUEST_NOT_FOUND";
+                default -> "NOT_FOUND";
+            };
             case CONFLICT -> switch (reason) {
                 case "Username is already registered" -> "USERNAME_ALREADY_TAKEN";
                 case "Email is already registered" -> "EMAIL_ALREADY_REGISTERED";
@@ -118,8 +130,22 @@ public class GlobalExceptionHandler {
                 case "A building with this name already exists in the society" -> "DUPLICATE_BUILDING";
                 case "This floor already exists in the building" -> "DUPLICATE_FLOOR";
                 case "A flat with this number already exists in the building" -> "DUPLICATE_FLAT";
+                case "User already has a resident profile" -> "DUPLICATE_RESIDENT";
+                case "User already has a security staff profile" -> "DUPLICATE_SECURITY_STAFF";
                 default -> "CONFLICT";
             };
+            case SERVICE_UNAVAILABLE -> {
+                if (reason != null && (reason.contains("SMTP") || reason.contains("Email"))) {
+                    yield "SMTP_NOT_CONFIGURED";
+                }
+                yield "SERVICE_UNAVAILABLE";
+            }
+            case BAD_GATEWAY -> {
+                if (reason != null && (reason.contains("SMTP") || reason.contains("Email"))) {
+                    yield "SMTP_DELIVERY_FAILED";
+                }
+                yield "BAD_GATEWAY";
+            }
             default -> "REQUEST_ERROR";
         };
 
@@ -142,11 +168,49 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(
             DataIntegrityViolationException exception
     ) {
+        String message = exception.getMessage() != null ? exception.getMessage().toLowerCase() : "";
 
-        ApiResponse<Void> response = ApiResponse.failure(
-                "DATA_INTEGRITY_ERROR",
-                "The requested operation could not be completed"
-        );
+        String code = "CONFLICT";
+        String reason = "The requested operation could not be completed";
+
+        if (message.contains("uk_resident_profiles_user_id") || message.contains("resident_profiles_user_id_key")) {
+            code = "DUPLICATE_RESIDENT";
+            reason = "User already has a resident profile";
+        } else if (message.contains("uk_security_staff_user_id")
+                || message.contains("security_staff_profiles_user_id_key")
+                || message.contains("security_staff_user_id_unique")) {
+            code = "DUPLICATE_SECURITY_STAFF";
+            reason = "User already has a security staff profile";
+        } else if (message.contains("uk_users_username") || message.contains("users_username_key")) {
+            code = "USERNAME_ALREADY_TAKEN";
+            reason = "Username is already registered";
+        } else if (message.contains("uk_users_email") || message.contains("users_email_key")) {
+            code = "EMAIL_ALREADY_REGISTERED";
+            reason = "Email is already registered";
+        } else if (message.contains("uk_users_mobile") || message.contains("users_mobile_number_key")) {
+            code = "MOBILE_ALREADY_REGISTERED";
+            reason = "Mobile number is already registered";
+        } else if (message.contains("uk_societies_owner") || message.contains("societies_owner_id_key")) {
+            code = "SOCIETY_ALREADY_EXISTS";
+            reason = "This admin already has a society";
+        } else if (message.contains("uk_societies_name") || message.contains("societies_name_key")) {
+            code = "DUPLICATE_SOCIETY_NAME";
+            reason = "A society with this name already exists";
+        } else if (message.contains("uk_buildings_society_name") || message.contains("buildings_society_id_name_key")) {
+            code = "DUPLICATE_BUILDING";
+            reason = "A building with this name already exists in the society";
+        } else if (message.contains("uk_floors_building_number") || message.contains("floors_building_id_number_key")) {
+            code = "DUPLICATE_FLOOR";
+            reason = "This floor already exists in the building";
+        } else if (message.contains("uk_flats_floor_number")
+                || message.contains("uk_flats_building_number")
+                || message.contains("flats_floor_id_number_key")
+                || message.contains("flats_building_id_number_key")) {
+            code = "DUPLICATE_FLAT";
+            reason = "A flat with this number already exists in the building";
+        }
+
+        ApiResponse<Void> response = ApiResponse.failure(code, reason);
 
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
@@ -181,7 +245,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleGeneralException(
             Exception exception
     ) {
-
+        exception.printStackTrace();
         ApiResponse<Void> response = ApiResponse.failure(
                 "INTERNAL_SERVER_ERROR",
                 "An unexpected error occurred"

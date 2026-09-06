@@ -1,22 +1,20 @@
 package com.societyone.app.auth.controller;
 
+import com.societyone.app.audit.entity.AuditAction;
+import com.societyone.app.audit.service.AuditService;
 import com.societyone.app.auth.dto.AuthResponse;
 import com.societyone.app.auth.dto.ForgotPasswordRequest;
-import com.societyone.app.auth.dto.ForgotPasswordResponse;
-import com.societyone.app.auth.dto.LoginRequest;
-import com.societyone.app.auth.dto.ResendOtpRequest;
-import com.societyone.app.auth.dto.ResetPasswordRequest;
-import com.societyone.app.auth.dto.SafeUserResponse;
-import com.societyone.app.auth.dto.SignupRequest;
-import com.societyone.app.auth.dto.VerifyOtpRequest;
+import com.societyone.app.auth.dto.*;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.auth.service.AuthService;
 import com.societyone.app.common.api.ApiResponse;
+import com.societyone.app.common.security.CurrentUser;
 
 import jakarta.validation.Valid;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -25,15 +23,17 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuditService auditService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AuditService auditService) {
         this.authService = authService;
+        this.auditService = auditService;
     }
 
     /**
      * Create a new account.
      *
-     * Public signup is intentionally restricted to VISITOR role only.
+     * Public signup supports self-registration for RESIDENT and VISITOR roles.
      * Admin + Security accounts are created via invitation/provisioning, not here.
      */
     @PostMapping("/signup")
@@ -99,6 +99,16 @@ public class AuthController {
 
         AuthResponse response = authService.login(request);
 
+        Long entityId = Long.parseLong(response.user().id());
+        auditService.record(
+                entityId,
+                null,
+                AuditAction.AUTH_LOGIN,
+                "USER",
+                entityId,
+                "User logged in via " + request.method()
+        );
+
         return ApiResponse.success(
                 response,
                 "Login successful"
@@ -115,7 +125,7 @@ public class AuthController {
             Authentication authentication
     ) {
 
-        User user = (User) authentication.getPrincipal();
+        User user = CurrentUser.require(authentication);
 
         SafeUserResponse response =
                 authService.getCurrentUser(user);
@@ -130,7 +140,17 @@ public class AuthController {
      * There is no server-side session to invalidate.
      */
     @PostMapping("/logout")
-    public ApiResponse<Void> logout() {
+    public ApiResponse<Void> logout(Authentication authentication) {
+
+        User actor = CurrentUser.require(authentication);
+        auditService.record(
+                actor.getId(),
+                null,
+                AuditAction.AUTH_LOGOUT,
+                "USER",
+                actor.getId(),
+                "User logged out"
+        );
 
         return ApiResponse.success(
                 null,
@@ -195,5 +215,74 @@ public class AuthController {
                 null,
                 "Password has been updated successfully"
         );
+    }
+
+    @PatchMapping("/profile")
+    public ApiResponse<SafeUserResponse> updateProfile(
+            Authentication authentication,
+            @Valid @RequestBody UpdateProfileRequest request
+    ) {
+        User user = CurrentUser.require(authentication);
+        SafeUserResponse response = authService.updateProfile(user, request);
+        return ApiResponse.success(response, "Profile updated successfully");
+    }
+
+    @PostMapping("/change-password")
+    public ApiResponse<Void> changePassword(
+            Authentication authentication,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        User user = CurrentUser.require(authentication);
+        authService.changePassword(user, request);
+        return ApiResponse.success(null, "Password changed successfully");
+    }
+
+    @PostMapping("/change-email")
+    public ApiResponse<SafeUserResponse> changeEmail(
+            Authentication authentication,
+            @Valid @RequestBody ChangeEmailRequest request
+    ) {
+        User user = CurrentUser.require(authentication);
+        SafeUserResponse response = authService.changeEmail(user, request);
+        return ApiResponse.success(response, "Email updated successfully");
+    }
+
+    @PostMapping("/change-mobile")
+    public ApiResponse<SafeUserResponse> changeMobile(
+            Authentication authentication,
+            @Valid @RequestBody ChangeMobileRequest request
+    ) {
+        User user = CurrentUser.require(authentication);
+        SafeUserResponse response = authService.changeMobile(user, request);
+        return ApiResponse.success(response, "Mobile number updated successfully");
+    }
+
+    @PostMapping("/profile-photo")
+    public ApiResponse<SafeUserResponse> uploadProfilePhoto(
+            Authentication authentication,
+            @RequestParam("file") MultipartFile file
+    ) {
+        User user = CurrentUser.require(authentication);
+        SafeUserResponse response = authService.uploadProfilePhoto(user, file);
+        return ApiResponse.success(response, "Profile photo updated successfully");
+    }
+
+    @DeleteMapping("/profile-photo")
+    public ApiResponse<SafeUserResponse> deleteProfilePhoto(
+            Authentication authentication
+    ) {
+        User user = CurrentUser.require(authentication);
+        SafeUserResponse response = authService.deleteProfilePhoto(user);
+        return ApiResponse.success(response, "Profile photo removed");
+    }
+
+    @PostMapping("/delete-account")
+    public ApiResponse<Void> deleteAccount(
+            Authentication authentication,
+            @Valid @RequestBody DeleteAccountRequest request
+    ) {
+        User user = CurrentUser.require(authentication);
+        authService.deleteAccount(user, request);
+        return ApiResponse.success(null, "Account deactivated successfully");
     }
 }

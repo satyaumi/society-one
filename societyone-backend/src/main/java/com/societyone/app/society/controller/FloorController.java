@@ -1,5 +1,7 @@
 package com.societyone.app.society.controller;
 
+import com.societyone.app.audit.entity.AuditAction;
+import com.societyone.app.audit.service.AuditService;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.common.api.ApiResponse;
 import com.societyone.app.common.security.CurrentUser;
@@ -21,9 +23,17 @@ import java.util.List;
 public class FloorController {
 
     private final SocietyStructureService societyStructureService;
+    private final AuditService auditService;
+    private final com.societyone.app.society.repository.FloorRepository floorRepository;
 
-    public FloorController(SocietyStructureService societyStructureService) {
+    public FloorController(
+            SocietyStructureService societyStructureService,
+            AuditService auditService,
+            com.societyone.app.society.repository.FloorRepository floorRepository
+    ) {
         this.societyStructureService = societyStructureService;
+        this.auditService = auditService;
+        this.floorRepository = floorRepository;
     }
 
     @PutMapping("/{floorId}")
@@ -33,8 +43,25 @@ public class FloorController {
             @Valid @RequestBody FloorRequest request
     ) {
         User actor = CurrentUser.require(authentication);
+        FloorResponse floorResp = societyStructureService.updateFloor(actor, floorId, request);
+        Long societyId = null;
+        try {
+            var floor = floorRepository.findById(floorId).orElse(null);
+            if (floor != null && floor.getBuilding() != null && floor.getBuilding().getSociety() != null) {
+                societyId = floor.getBuilding().getSociety().getId();
+            }
+        } catch (Exception ignored) {
+        }
+        auditService.record(
+                actor.getId(),
+                societyId,
+                AuditAction.FLOOR_UPDATED,
+                "FLOOR",
+                floorId,
+                "Updated floor"
+        );
         return ApiResponse.success(
-                societyStructureService.updateFloor(actor, floorId, request),
+                floorResp,
                 "Floor updated"
         );
     }
@@ -46,8 +73,26 @@ public class FloorController {
             @Valid @RequestBody FlatRequest request
     ) {
         User actor = CurrentUser.require(authentication);
+        FlatResponse flatResp = societyStructureService.createFlat(actor, floorId, request);
+        Long entityId = Long.parseLong(flatResp.id());
+        Long societyId = null;
+        try {
+            var floor = floorRepository.findById(floorId).orElse(null);
+            if (floor != null && floor.getBuilding() != null && floor.getBuilding().getSociety() != null) {
+                societyId = floor.getBuilding().getSociety().getId();
+            }
+        } catch (Exception ignored) {
+        }
+        auditService.record(
+                actor.getId(),
+                societyId,
+                AuditAction.FLAT_CREATED,
+                "FLAT",
+                entityId,
+                "Created flat " + flatResp.number()
+        );
         return ApiResponse.success(
-                societyStructureService.createFlat(actor, floorId, request),
+                flatResp,
                 "Flat created"
         );
     }

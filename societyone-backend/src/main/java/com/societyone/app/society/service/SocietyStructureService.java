@@ -52,15 +52,21 @@ public class SocietyStructureService {
 
     @Transactional(readOnly = true)
     public List<SocietyResponse> listSocieties(User actor) {
-        if (actor.getRole() != Role.ADMIN) {
-            return List.of();
+        if (actor.getRole() == Role.ADMIN) {
+            return toTrees(societyRepository.findByOwnerOrderByNameAsc(actor));
         }
-        return toTrees(societyRepository.findByOwnerOrderByNameAsc(actor));
+        return toTrees(societyRepository.findAll());
     }
 
     @Transactional(readOnly = true)
     public SocietyResponse getSociety(User actor, Long societyId) {
-        return toTree(requireOwnedSociety(actor, societyId));
+        if (actor.getRole() == Role.ADMIN) {
+            return toTree(requireOwnedSociety(actor, societyId));
+        }
+        return toTree(
+                societyRepository.findById(societyId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Society not found"))
+        );
     }
 
     public SocietyResponse createSociety(User actor, SocietyRequest request) {

@@ -1,14 +1,18 @@
 spring:
   application:
     name: societyone-backend
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:societyone-backend/.env[.properties]
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/societyone
-    username: postgres
-    password: Satya2003@
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/societyone}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
 
   jpa:
     hibernate:
@@ -17,11 +21,30 @@ spring:
   flyway:
     enabled: true
 
+  mail:
+    host: ${SPRING_MAIL_HOST:${SMTP_HOST:smtp.gmail.com}}
+    port: ${SPRING_MAIL_PORT:${SMTP_PORT:587}}
+    username: ${SPRING_MAIL_USERNAME:${SMTP_USERNAME:}}
+    password: ${SPRING_MAIL_PASSWORD:${SMTP_PASSWORD:}}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:${SMTP_AUTH:true}}
+          starttls:
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:${SMTP_STARTTLS:true}}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
 server:
   port: 8081
 
 societyone:
   security:
     jwt:
-      secret: KrHYbZiErgOZGL3TStmT/lSpso1dWffBoH94bZw615s=
+      secret: ${JWT_SECRET:KrHYbZiErgOZGL3TStmT/lSpso1dWffBoH94bZw615s=}
       expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  mail:
+    from: ${MAIL_FROM:noreply@societyone.com}
+    from-name: ${MAIL_FROM_NAME:SocietyOne}
+    enabled: ${MAIL_ENABLED:true}
