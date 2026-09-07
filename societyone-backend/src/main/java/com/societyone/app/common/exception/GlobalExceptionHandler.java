@@ -75,6 +75,18 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        log.warn("Malformed HTTP request body: {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.failure(
+                "MALFORMED_REQUEST",
+                "The request body is malformed or unreadable"
+        );
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(response);
+    }
+
     /*
      * Handles ResponseStatusException thrown by AuthService.
      */
@@ -235,6 +247,41 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    /*
+     * Handles Spring Security access denied errors from @PreAuthorize / method security.
+     */
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(
+            org.springframework.security.access.AccessDeniedException exception
+    ) {
+        ApiResponse<Void> response = ApiResponse.failure(
+                "FORBIDDEN",
+                "You are not allowed to perform this action"
+        );
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(response);
+    }
+
+    /*
+     * Handles Spring Security bad credentials.
+     */
+    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBadCredentials(
+            org.springframework.security.authentication.BadCredentialsException exception
+    ) {
+        ApiResponse<Void> response = ApiResponse.failure(
+                "UNAUTHORIZED",
+                "Invalid credentials"
+        );
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(response);
+    }
+
     /*
      * Final safety net.
      *
@@ -245,7 +292,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleGeneralException(
             Exception exception
     ) {
-        exception.printStackTrace();
+        log.error("Unhandled exception caught by GlobalExceptionHandler: {}", exception.getMessage(), exception);
         ApiResponse<Void> response = ApiResponse.failure(
                 "INTERNAL_SERVER_ERROR",
                 "An unexpected error occurred"

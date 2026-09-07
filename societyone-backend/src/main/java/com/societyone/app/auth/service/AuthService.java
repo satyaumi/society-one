@@ -40,19 +40,22 @@ public class AuthService {
     private final JwtService jwtService;
     private final OtpService otpService;
     private final EmailService emailService;
+    private final OtpDeliveryService otpDeliveryService;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             OtpService otpService,
-            EmailService emailService
+            EmailService emailService,
+            OtpDeliveryService otpDeliveryService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.otpService = otpService;
         this.emailService = emailService;
+        this.otpDeliveryService = otpDeliveryService;
     }
 
     // -------------------------- Public signup --------------------------
@@ -68,6 +71,28 @@ public class AuthService {
                     HttpStatus.BAD_REQUEST,
                     "At least one of email or mobile number is required"
             );
+        }
+
+        // Server-side enforcement: Email must be verified via OTP prior to account creation
+        if (email != null && !email.isBlank()) {
+            boolean verified = otpService.consumeVerificationToken(
+                    email,
+                    "SIGNUP_EMAIL",
+                    request.verificationToken()
+            );
+            if (!verified) {
+                verified = otpService.consumeVerificationToken(
+                        email,
+                        "SIGNUP",
+                        request.verificationToken()
+                );
+            }
+            if (!verified) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Email verification is required before creating an account. Please verify your email with OTP."
+                );
+            }
         }
 
         if (!passwordMeetsPolicy(request.password())) {
@@ -116,6 +141,10 @@ public class AuthService {
         Role targetRole = Role.RESIDENT;
 
         User saved = createUser(request, targetRole, AccountStatus.ACTIVE);
+
+        if (saved.getEmail() != null && !saved.getEmail().isBlank()) {
+            emailService.sendWelcomeEmail(saved.getEmail(), saved.getFullName(), saved.getUsername(), saved.getRole().name());
+        }
 
         String token = jwtService.generateToken(
                 saved.getId(),
@@ -201,6 +230,10 @@ public class AuthService {
 
         User saved = createUser(request, Role.ADMIN, AccountStatus.ACTIVE);
 
+        if (saved.getEmail() != null && !saved.getEmail().isBlank()) {
+            emailService.sendWelcomeEmail(saved.getEmail(), saved.getFullName(), saved.getUsername(), saved.getRole().name());
+        }
+
         String token = jwtService.generateToken(
                 saved.getId(),
                 saved.getUsername(),
@@ -239,7 +272,7 @@ public class AuthService {
         user.setRole(role);
         user.setAccountStatus(accountStatus);
 
-        user.setEmailVerified(false);
+        user.setEmailVerified(user.getEmail() != null && !user.getEmail().isBlank());
         user.setMobileVerified(false);
 
         return userRepository.save(user);
@@ -355,6 +388,10 @@ public class AuthService {
 
         User saved = userRepository.save(user);
 
+        if (saved.getEmail() != null && !saved.getEmail().isBlank()) {
+            emailService.sendLoginAlertEmail(saved.getEmail(), saved.getFullName(), saved.getUsername(), saved.getRole().name());
+        }
+
         String token = jwtService.generateToken(
                 saved.getId(),
                 saved.getUsername(),
@@ -387,7 +424,7 @@ public class AuthService {
                     ? user.getEmail()
                     : (identifier.contains("@") ? identifier : null);
             if (targetEmail != null) {
-                emailService.sendOtpEmail(targetEmail, code, "PASSWORD_RESET", OtpService.TTL_MINUTES);
+                otpDeliveryService.send(OtpChannel.EMAIL, targetEmail, code, "PASSWORD_RESET", OtpService.TTL_MINUTES);
             }
         }
 
@@ -411,9 +448,19 @@ public class AuthService {
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid OTP");
         }
 
+        // Signup verification flow: Account has not been created yet
+        if ("SIGNUP_EMAIL".equals(purpose) || "SIGNUP".equals(purpose)) {
+            String verificationToken = otpService.getVerificationToken(identifier, purpose);
+            return Map.of(
+                    "verified", true,
+                    "verificationToken", verificationToken != null ? verificationToken : "",
+                    "identifier", identifier
+            );
+        }
+
         User user = findUserByIdentifier(identifier);
         if (user != null) {
-            if ("SIGNUP".equals(purpose) || "EMAIL_VERIFICATION".equals(purpose) || "PASSWORD_RESET".equals(purpose)) {
+            if ("EMAIL_VERIFICATION".equals(purpose) || "PASSWORD_RESET".equals(purpose)) {
                 if (identifier.contains("@")) {
                     user.setEmailVerified(true);
                     userRepository.save(user);
@@ -421,8 +468,7 @@ public class AuthService {
             }
         }
 
-        if ("SIGNUP".equals(purpose) || "LOGIN".equals(purpose)) {
-            // For SIGNUP/LOGIN: find the user by identifier and issue a session token.
+        if ("LOGIN".equals(purpose)) {
             if (user == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid OTP");
             }
@@ -434,6 +480,11 @@ public class AuthService {
             }
             user.setLastLoginAt(OffsetDateTime.now());
             User saved = userRepository.save(user);
+
+            if (saved.getEmail() != null && !saved.getEmail().isBlank()) {
+                emailService.sendLoginAlertEmail(saved.getEmail(), saved.getFullName(), saved.getUsername(), saved.getRole().name());
+            }
+
             String token = jwtService.generateToken(
                     saved.getId(),
                     saved.getUsername(),
@@ -444,6 +495,36 @@ public class AuthService {
 
         // PASSWORD_RESET purpose (and any other unknown purpose) → return verified:true sentinel.
         return Map.of("verified", true);
+    }
+
+    public void sendOtp(ResendOtpRequest request) {
+        String identifier = request.identifier() == null ? "" : request.identifier().trim();
+        String purpose = request.purpose() == null || request.purpose().isBlank()
+                ? "SIGNUP_EMAIL"
+                : request.purpose().trim().toUpperCase(Locale.ROOT);
+
+        long cooldown = otpService.getRemainingCooldownSeconds(identifier, purpose);
+        if (cooldown > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Please wait " + cooldown + " seconds before requesting another OTP."
+            );
+        }
+
+        if ("SIGNUP_EMAIL".equals(purpose) || "SIGNUP".equals(purpose)) {
+            String email = normalize(identifier);
+            if (email == null || !email.contains("@")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email address is required");
+            }
+            if (userRepository.existsByEmailIgnoreCase(email)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
+            }
+            String code = otpService.generateOtp(email, purpose);
+            otpDeliveryService.send(OtpChannel.EMAIL, email, code, purpose, OtpService.TTL_MINUTES);
+            return;
+        }
+
+        resendOtp(request);
     }
 
     public void resendOtp(ResendOtpRequest request) {
@@ -460,6 +541,19 @@ public class AuthService {
             );
         }
 
+        if ("SIGNUP_EMAIL".equals(purpose) || "SIGNUP".equals(purpose)) {
+            String email = normalize(identifier);
+            if (email == null || !email.contains("@")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email address is required");
+            }
+            if (userRepository.existsByEmailIgnoreCase(email)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
+            }
+            String code = otpService.generateOtp(email, purpose);
+            otpDeliveryService.send(OtpChannel.EMAIL, email, code, purpose, OtpService.TTL_MINUTES);
+            return;
+        }
+
         User user = findUserByIdentifier(identifier);
         if (user != null) {
             String code = otpService.generateOtp(identifier, purpose);
@@ -467,12 +561,12 @@ public class AuthService {
                     ? user.getEmail()
                     : (identifier.contains("@") ? identifier : null);
             if (targetEmail != null) {
-                emailService.sendOtpEmail(targetEmail, code, purpose, OtpService.TTL_MINUTES);
+                otpDeliveryService.send(OtpChannel.EMAIL, targetEmail, code, purpose, OtpService.TTL_MINUTES);
             }
         } else if (identifier.contains("@")) {
             // Also generate and attempt send if identifier looks like email to prevent enumeration
             String code = otpService.generateOtp(identifier, purpose);
-            emailService.sendOtpEmail(identifier, code, purpose, OtpService.TTL_MINUTES);
+            otpDeliveryService.send(OtpChannel.EMAIL, identifier, code, purpose, OtpService.TTL_MINUTES);
         }
     }
 
@@ -506,9 +600,13 @@ public class AuthService {
         if (identifier.contains("@")) {
             user.setEmailVerified(true);
         }
-        userRepository.save(user);
+        User saved = userRepository.save(user);
         // Invalidate any other OTP entries for the same identifier so it cannot be reused.
         otpService.invalidate(identifier, purpose);
+
+        if (saved.getEmail() != null && !saved.getEmail().isBlank()) {
+            emailService.sendPasswordResetSuccessEmail(saved.getEmail(), saved.getFullName(), saved.getUsername());
+        }
     }
 
     // ---------------- Profile & Settings ----------------
@@ -534,7 +632,11 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password does not meet requirements");
         }
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-        userRepository.save(user);
+        User saved = userRepository.save(user);
+
+        if (saved.getEmail() != null && !saved.getEmail().isBlank()) {
+            emailService.sendPasswordResetSuccessEmail(saved.getEmail(), saved.getFullName(), saved.getUsername());
+        }
     }
 
     public SafeUserResponse changeEmail(User user, ChangeEmailRequest request) {
@@ -547,7 +649,7 @@ public class AuthService {
             user.setEmailVerified(false);
             User saved = userRepository.save(user);
             String code = otpService.generateOtp(newEmail, "EMAIL_VERIFICATION");
-            emailService.sendOtpEmail(newEmail, code, "EMAIL_VERIFICATION", OtpService.TTL_MINUTES);
+            otpDeliveryService.send(OtpChannel.EMAIL, newEmail, code, "EMAIL_VERIFICATION", OtpService.TTL_MINUTES);
             return SafeUserResponse.from(saved);
         }
         return SafeUserResponse.from(user);

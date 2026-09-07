@@ -193,6 +193,17 @@ public class AuthController {
     }
 
     /**
+     * Send an OTP for signup or other verification flows.
+     */
+    @PostMapping("/send-otp")
+    public ApiResponse<Void> sendOtp(
+            @Valid @RequestBody ResendOtpRequest request
+    ) {
+        authService.sendOtp(request);
+        return ApiResponse.success(null, "Verification code sent");
+    }
+
+    /**
      * Resend a previously generated OTP (invalidates the old one).
      */
     @PostMapping("/resend-otp")

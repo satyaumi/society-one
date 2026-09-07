@@ -7,11 +7,11 @@ import jakarta.validation.constraints.Size;
 
 public record SignupRequest (
     @NotBlank(message = "Full name is required")
-    @Size(max =120, message="Full name is too long")
+    @Size(max = 120, message = "Full name is too long")
     String fullName,
 
     @NotBlank(message = "Username is required")
-    @Size(min=3, max=30, message = "Username must be between 3 and 30 characters")
+    @Size(min = 3, max = 30, message = "Username must be between 3 and 30 characters")
     @Pattern(regexp = "^[a-zA-Z0-9_.-]+$", message = "Username may only contain letters, numbers, and . _ -")
     String username,
 
@@ -19,7 +19,22 @@ public record SignupRequest (
     String email,
     String mobileNumber,
     @NotBlank(message = "Password is required")
-    @Size(min=8, max = 100, message = "Password must be between 8 and 100 characters")
+    @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
     String password,
-    String intendedRole
-){}
+    String intendedRole,
+    String verificationToken
+){
+    /**
+     * Overloaded constructor for backwards compatibility where verificationToken is not supplied.
+     */
+    public SignupRequest(
+            String fullName,
+            String username,
+            String email,
+            String mobileNumber,
+            String password,
+            String intendedRole
+    ) {
+        this(fullName, username, email, mobileNumber, password, intendedRole, null);
+    }
+}
