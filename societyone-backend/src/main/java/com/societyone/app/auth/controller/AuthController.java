@@ -196,22 +196,24 @@ public class AuthController {
      * Send an OTP for signup or other verification flows.
      */
     @PostMapping("/send-otp")
-    public ApiResponse<Void> sendOtp(
+    public ApiResponse<Map<String, Object>> sendOtp(
             @Valid @RequestBody ResendOtpRequest request
     ) {
-        authService.sendOtp(request);
-        return ApiResponse.success(null, "Verification code sent");
+        String code = authService.sendOtp(request);
+        Map<String, Object> data = code != null ? Map.of("devOtp", code) : Map.of();
+        return ApiResponse.success(data, "Verification code sent");
     }
 
     /**
      * Resend a previously generated OTP (invalidates the old one).
      */
     @PostMapping("/resend-otp")
-    public ApiResponse<Void> resendOtp(
+    public ApiResponse<Map<String, Object>> resendOtp(
             @Valid @RequestBody ResendOtpRequest request
     ) {
-        authService.resendOtp(request);
-        return ApiResponse.success(null, "Verification code resent");
+        String code = authService.resendOtp(request);
+        Map<String, Object> data = code != null ? Map.of("devOtp", code) : Map.of();
+        return ApiResponse.success(data, "Verification code resent");
     }
 
     /**

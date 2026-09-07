@@ -119,6 +119,10 @@ export interface SetupStatus {
   available: boolean;
 }
 
+export interface SendOtpResult {
+  devOtp?: string;
+}
+
 export interface AuthService {
   login(input: LoginInput): Promise<AuthResult>;
   signup(
@@ -127,8 +131,8 @@ export interface AuthService {
   verifyOtp(
     input: VerifyOtpInput,
   ): Promise<AuthResult | { verified: true; verificationToken?: string; identifier?: string }>;
-  sendOtp(input: ResendOtpInput): Promise<void>;
-  resendOtp(input: ResendOtpInput): Promise<void>;
+  sendOtp(input: ResendOtpInput): Promise<SendOtpResult>;
+  resendOtp(input: ResendOtpInput): Promise<SendOtpResult>;
   forgotPassword(
     input: ForgotPasswordInput,
   ): Promise<{ identifier: string }>;
@@ -547,8 +551,8 @@ export const authService: AuthService = {
   },
 
   async sendOtp(input) {
-    await withReadableError(
-      apiFetch<void>("/auth/send-otp", {
+    return await withReadableError(
+      apiFetch<SendOtpResult>("/auth/send-otp", {
         method: "POST",
         json: input,
       }),
@@ -556,8 +560,8 @@ export const authService: AuthService = {
   },
 
   async resendOtp(input) {
-    await withReadableError(
-      apiFetch<void>("/auth/resend-otp", {
+    return await withReadableError(
+      apiFetch<SendOtpResult>("/auth/resend-otp", {
         method: "POST",
         json: input,
       }),

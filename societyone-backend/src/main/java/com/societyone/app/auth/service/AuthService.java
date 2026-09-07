@@ -497,7 +497,7 @@ public class AuthService {
         return Map.of("verified", true);
     }
 
-    public void sendOtp(ResendOtpRequest request) {
+    public String sendOtp(ResendOtpRequest request) {
         String identifier = request.identifier() == null ? "" : request.identifier().trim();
         String purpose = request.purpose() == null || request.purpose().isBlank()
                 ? "SIGNUP_EMAIL"
@@ -521,13 +521,29 @@ public class AuthService {
             }
             String code = otpService.generateOtp(email, purpose);
             otpDeliveryService.send(OtpChannel.EMAIL, email, code, purpose, OtpService.TTL_MINUTES);
-            return;
+            return code;
         }
 
-        resendOtp(request);
+        User user = findUserByIdentifier(identifier);
+        if (user != null) {
+            String code = otpService.generateOtp(identifier, purpose);
+            String targetEmail = user.getEmail() != null && !user.getEmail().isBlank()
+                    ? user.getEmail()
+                    : (identifier.contains("@") ? identifier : null);
+            if (targetEmail != null) {
+                otpDeliveryService.send(OtpChannel.EMAIL, targetEmail, code, purpose, OtpService.TTL_MINUTES);
+            }
+            return code;
+        } else if (identifier.contains("@")) {
+            // Also generate and attempt send if identifier looks like email to prevent enumeration
+            String code = otpService.generateOtp(identifier, purpose);
+            otpDeliveryService.send(OtpChannel.EMAIL, identifier, code, purpose, OtpService.TTL_MINUTES);
+            return code;
+        }
+        return null;
     }
 
-    public void resendOtp(ResendOtpRequest request) {
+    public String resendOtp(ResendOtpRequest request) {
         String identifier = request.identifier() == null ? "" : request.identifier().trim();
         String purpose = request.purpose() == null || request.purpose().isBlank()
                 ? "PASSWORD_RESET"
@@ -541,33 +557,8 @@ public class AuthService {
             );
         }
 
-        if ("SIGNUP_EMAIL".equals(purpose) || "SIGNUP".equals(purpose)) {
-            String email = normalize(identifier);
-            if (email == null || !email.contains("@")) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email address is required");
-            }
-            if (userRepository.existsByEmailIgnoreCase(email)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
-            }
-            String code = otpService.generateOtp(email, purpose);
-            otpDeliveryService.send(OtpChannel.EMAIL, email, code, purpose, OtpService.TTL_MINUTES);
-            return;
-        }
-
-        User user = findUserByIdentifier(identifier);
-        if (user != null) {
-            String code = otpService.generateOtp(identifier, purpose);
-            String targetEmail = user.getEmail() != null && !user.getEmail().isBlank()
-                    ? user.getEmail()
-                    : (identifier.contains("@") ? identifier : null);
-            if (targetEmail != null) {
-                otpDeliveryService.send(OtpChannel.EMAIL, targetEmail, code, purpose, OtpService.TTL_MINUTES);
-            }
-        } else if (identifier.contains("@")) {
-            // Also generate and attempt send if identifier looks like email to prevent enumeration
-            String code = otpService.generateOtp(identifier, purpose);
-            otpDeliveryService.send(OtpChannel.EMAIL, identifier, code, purpose, OtpService.TTL_MINUTES);
-        }
+        otpService.invalidate(identifier, purpose);
+        return sendOtp(request);
     }
 
     public void resetPassword(ResetPasswordRequest request) {

@@ -110,12 +110,17 @@ function SignupPage() {
 
     setLoading(true);
     try {
-      await authService.sendOtp({
+      const res = await authService.sendOtp({
         identifier: email.trim(),
         purpose: "SIGNUP_EMAIL",
       });
       setEmailStep("VERIFY_OTP");
-      setResendMessage("Verification code sent to your email.");
+      if (res?.devOtp) {
+        setOtp(res.devOtp);
+        setResendMessage(`Verification code sent! (Sandbox Code: ${res.devOtp})`);
+      } else {
+        setResendMessage("Verification code sent to your email.");
+      }
     } catch (err) {
       setError(toUserError(err));
     } finally {
@@ -159,9 +164,9 @@ function SignupPage() {
       setEmailStep("COMPLETE_DETAILS");
     } catch (err) {
       if (err instanceof ApiError && err.code === "OTP_EXPIRED") {
-        setOtpError("Verification code has expired. Please request a new one.");
+        setOtpError("OTP expired. Click resend to receive a fresh code.");
       } else if (err instanceof ApiError && err.code === "OTP_INVALID") {
-        setOtpError("Invalid verification code. Please check and try again.");
+        setOtpError("Invalid OTP. Double check the code sent to your email.");
       } else {
         setError(toUserError(err));
       }
@@ -177,11 +182,16 @@ function SignupPage() {
     setResendMessage(null);
     setResending(true);
     try {
-      await authService.sendOtp({
+      const res = await authService.sendOtp({
         identifier: email.trim(),
         purpose: "SIGNUP_EMAIL",
       });
-      setResendMessage("A new verification code has been sent to your email.");
+      if (res?.devOtp) {
+        setOtp(res.devOtp);
+        setResendMessage(`A new verification code has been sent! (Sandbox Code: ${res.devOtp})`);
+      } else {
+        setResendMessage("A new verification code has been sent to your email.");
+      }
     } catch (err) {
       setError(toUserError(err));
     } finally {
