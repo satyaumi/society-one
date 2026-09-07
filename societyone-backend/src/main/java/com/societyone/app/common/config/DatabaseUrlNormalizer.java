@@ -41,6 +41,12 @@ public final class DatabaseUrlNormalizer {
         }
 
         String trimmed = dbUrl.trim();
+        if (trimmed.startsWith("ostgresql://")) {
+            trimmed = "postgresql://" + trimmed.substring("ostgresql://".length());
+        } else if (trimmed.startsWith("ostgres://")) {
+            trimmed = "postgres://" + trimmed.substring("ostgres://".length());
+        }
+
         if (trimmed.startsWith("postgres://") || trimmed.startsWith("postgresql://")) {
             try {
                 String uriStr = trimmed;

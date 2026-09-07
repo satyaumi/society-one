@@ -37,6 +37,12 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         }
 
         String trimmed = dbUrl.trim();
+        if (trimmed.startsWith("ostgresql://")) {
+            trimmed = "postgresql://" + trimmed.substring("ostgresql://".length());
+        } else if (trimmed.startsWith("ostgres://")) {
+            trimmed = "postgres://" + trimmed.substring("ostgres://".length());
+        }
+
         Map<String, Object> overrides = new HashMap<>();
 
         if (trimmed.startsWith("postgres://") || trimmed.startsWith("postgresql://")) {
