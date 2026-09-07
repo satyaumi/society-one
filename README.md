@@ -1,11 +1,22 @@
 # SocietyOne — Residential Community & Visitor Management Platform
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Online-emerald?style=for-the-badge&logo=render&logoColor=white)](https://society-one-backend.onrender.com)
 [![Java](https://img.shields.io/badge/Java-21%2B-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4%2B-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%2B-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-v4-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+
+---
+
+### 🌐 Live Production Application
+- 🚀 **Live Portal**: [https://society-one-backend.onrender.com](https://society-one-backend.onrender.com)
+- ⚡ **Instant Guest Request (No Login Required)**: [https://society-one-backend.onrender.com/invite](https://society-one-backend.onrender.com/invite)
+- 🔐 **Sign In (Residents, Staff, Security, Admin)**: [https://society-one-backend.onrender.com/login](https://society-one-backend.onrender.com/login)
+- 📡 **Vercel Frontend**: [https://society-one-frontend.vercel.app](https://society-one-frontend.vercel.app)
+
+---
 
 SocietyOne is a modern, full-stack residential security and visitor operating system. It synchronizes visitors, apartment residents, and gate security desks into a unified digital workflow—eliminating manual paper logbooks, long gate queues, and unauthorized entries.
 
