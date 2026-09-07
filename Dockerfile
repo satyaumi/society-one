@@ -1,13 +1,13 @@
 # ==============================================================================
-# Build Stage
+# Build Stage (Repository Root Context)
 # ==============================================================================
 FROM maven:3.9.9-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /workspace
 
-# Copy Maven descriptor and source code
-COPY pom.xml ./
-COPY src ./src
+# Copy Maven descriptor and source code from societyone-backend
+COPY societyone-backend/pom.xml ./
+COPY societyone-backend/src ./src
 
 # Build production jar
 RUN mvn clean package -DskipTests -B

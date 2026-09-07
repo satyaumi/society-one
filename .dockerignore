@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+*.iml
+.env
+.env.*
+!.env.example
+target/
+uploads/
+*.log
+scratch/
+societyone-frontend/node_modules/
+societyone-frontend/dist/
+README.md
+HELP.md
