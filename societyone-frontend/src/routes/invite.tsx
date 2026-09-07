@@ -25,6 +25,8 @@ import {
   PageIntro,
   SectionHeading,
 } from "@/components/societyone";
+import { VisitorPhotoUpload } from "@/components/VisitorPhotoUpload";
+import { resolveMediaUrl } from "@/lib/media-url";
 import societyOneLogo from "@/assets/societyone-logo.png";
 import {
   authService,
@@ -62,6 +64,7 @@ interface InviteFormDraft {
   purpose?: string;
   vehicleNumber?: string;
   expectedTime?: string;
+  photoUrl?: string;
   selectedBuildingId?: string;
   selectedFlatId?: string;
   selectedResidentId?: string;
@@ -138,6 +141,7 @@ export function InvitePage() {
   const [purpose, setPurpose] = useState(initialDraft?.purpose ?? "");
   const [visitorType, setVisitorType] = useState<VisitorType>(initialDraft?.visitorType ?? "GUEST");
   const [vehicleNumber, setVehicleNumber] = useState(initialDraft?.vehicleNumber ?? "");
+  const [photoUrl, setPhotoUrl] = useState(initialDraft?.photoUrl ?? "");
   const [expectedDate, setExpectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [expectedTime, setExpectedTime] = useState(initialDraft?.expectedTime ?? "12:00");
 
@@ -151,20 +155,21 @@ export function InvitePage() {
 
   // Save form draft across refreshes / tab switches
   useEffect(() => {
-    if (name || mobile || purpose || vehicleNumber || selectedBuildingId || selectedFlatId || selectedResidentId) {
+    if (name || mobile || purpose || vehicleNumber || photoUrl || selectedBuildingId || selectedFlatId || selectedResidentId) {
       saveDraft({
         visitorType,
         name,
         mobile,
         purpose,
         vehicleNumber,
+        photoUrl,
         expectedTime,
         selectedBuildingId,
         selectedFlatId,
         selectedResidentId,
       });
     }
-  }, [visitorType, name, mobile, purpose, vehicleNumber, expectedTime, selectedBuildingId, selectedFlatId, selectedResidentId]);
+  }, [visitorType, name, mobile, purpose, vehicleNumber, photoUrl, expectedTime, selectedBuildingId, selectedFlatId, selectedResidentId]);
 
   function handleClearDraft() {
     clearDraft();
@@ -172,6 +177,7 @@ export function InvitePage() {
     setMobile("");
     setPurpose("");
     setVehicleNumber("");
+    setPhotoUrl("");
     setExpectedTime("12:00");
     setVisitorType("GUEST");
     setDraftRestored(false);
@@ -413,6 +419,7 @@ export function InvitePage() {
           purpose: purpose.trim(),
           visitorType,
           vehicleNumber: vehicleNumber.trim() ? vehicleNumber.trim().toUpperCase() : undefined,
+          photoUrl: photoUrl.trim() || undefined,
           societyId: Number(selectedSocietyId),
           buildingId: selectedBuildingId ? Number(selectedBuildingId) : undefined,
           flatId: Number(selectedFlatId),
@@ -472,6 +479,7 @@ export function InvitePage() {
           expectedTime: expectedTime || "12:00",
           purpose: purpose.trim(),
           vehicleNumber: vehicleNumber.trim() ? vehicleNumber.trim().toUpperCase() : undefined,
+          photoUrl: photoUrl.trim() || undefined,
         };
 
         await visitorService.createRequest(residentInput);
@@ -532,6 +540,7 @@ export function InvitePage() {
         expectedTime: expectedTime || "12:00",
         purpose: purpose.trim(),
         vehicleNumber: vehicleNumber.trim() ? vehicleNumber.trim().toUpperCase() : undefined,
+        photoUrl: photoUrl.trim() || undefined,
       };
 
       await visitorService.createRequest(staffInput);
@@ -649,6 +658,18 @@ export function InvitePage() {
 
             {/* Visit Details Table */}
             <div className="mt-6 divide-y divide-border rounded-xl border border-border bg-background p-4 text-sm">
+              {trackedRequest.photoUrl && (
+                <div className="flex items-center justify-between py-2.5">
+                  <span className="text-muted-foreground">Visitor Photo</span>
+                  <div className="size-14 overflow-hidden rounded-lg border border-border">
+                    <img
+                      src={resolveMediaUrl(trackedRequest.photoUrl)}
+                      alt={trackedRequest.visitor.name}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                </div>
+              )}
               <div className="flex justify-between py-2.5">
                 <span className="text-muted-foreground">Visitor Name</span>
                 <span className="font-semibold">{trackedRequest.visitor.name}</span>
@@ -914,6 +935,17 @@ export function InvitePage() {
                 className="mt-1"
               />
             </div>
+          </div>
+
+          {/* Optional Visitor Photo */}
+          <div className="pt-2">
+            <VisitorPhotoUpload
+              photoUrl={photoUrl}
+              onPhotoChange={(url) => setPhotoUrl(url || "")}
+              required={false}
+              isPublic={!user}
+              helperText="Optional: Upload visitor photo for quick identification and verification at gate."
+            />
           </div>
 
           {/* Destination Selection (Only needed if NOT a resident with assigned flat) */}

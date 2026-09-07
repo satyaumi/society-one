@@ -116,19 +116,38 @@ public class VisitorAuthorizationService {
         if (request.visitorId() != null) {
             visitor = visitorRepository.findById(request.visitorId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Visitor not found"));
+            if (request.photoUrl() != null && !request.photoUrl().isBlank()) {
+                visitor.setPhotoUrl(request.photoUrl().trim());
+                visitor = visitorRepository.saveAndFlush(visitor);
+            }
         } else {
             visitor = visitorRepository.findFirstByMobileNumber(mobile)
+                    .map(existing -> {
+                        if (request.photoUrl() != null && !request.photoUrl().isBlank()) {
+                            existing.setPhotoUrl(request.photoUrl().trim());
+                            return visitorRepository.saveAndFlush(existing);
+                        }
+                        return existing;
+                    })
                     .orElseGet(() -> {
+                        if (request.photoUrl() == null || request.photoUrl().isBlank()) {
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Visitor photo is required for first-time regular visitor registration");
+                        }
                         Visitor v = new Visitor();
                         v.setFullName(request.fullName() != null && !request.fullName().isBlank()
                                 ? request.fullName().trim() : "Regular Visitor");
                         v.setMobileNumber(mobile);
                         v.setVisitorType(request.visitorType() != null ? request.visitorType() : VisitorType.DOMESTIC_WORKER);
+                        v.setPhotoUrl(request.photoUrl().trim());
                         if (request.vehicleNumber() != null && !request.vehicleNumber().isBlank()) {
                             v.setVehicleNumber(request.vehicleNumber().trim().toUpperCase());
                         }
                         return visitorRepository.saveAndFlush(v);
                     });
+        }
+
+        if (visitor.getPhotoUrl() == null || visitor.getPhotoUrl().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Visitor photo is required for first-time regular visitor registration");
         }
 
         AuthorizationType authType = request.authorizationType() != null
@@ -141,11 +160,12 @@ public class VisitorAuthorizationService {
             validUntil = LocalDate.now();
         }
 
+        final Visitor finalVisitor = visitor;
         VisitorAuthorization auth = authorizationRepository
-                .findByVisitorIdAndFlatId(visitor.getId(), flat.getId())
+                .findByVisitorIdAndFlatId(finalVisitor.getId(), flat.getId())
                 .orElseGet(() -> {
                     VisitorAuthorization newAuth = new VisitorAuthorization();
-                    newAuth.setVisitor(visitor);
+                    newAuth.setVisitor(finalVisitor);
                     newAuth.setSociety(society);
                     newAuth.setFlat(flat);
                     newAuth.setResident(targetResident);
@@ -313,14 +333,17 @@ public class VisitorAuthorizationService {
                 "Regular visitor " + visitor.getFullName() + " checked in for flat " + flat.getNumber()
         );
 
+        String buildingName = (flat.getBuilding() != null) ? flat.getBuilding().getName() : null;
         return new VisitRequestResponse(
                 saved.getId(),
                 visitor.getId(),
                 visitor.getFullName(),
                 visitor.getMobileNumber(),
                 visitor.getVisitorType(),
+                visitor.getPhotoUrl(),
                 society.getId(),
                 society.getName(),
+                buildingName,
                 flat.getId(),
                 flat.getNumber(),
                 resident.getId(),
@@ -332,7 +355,8 @@ public class VisitorAuthorizationService {
                 saved.getExpectedTime(),
                 saved.getPurpose(),
                 saved.getVehicleNumber(),
-                saved.getCreatedAt()
+                saved.getCreatedAt(),
+                saved.getUpdatedAt() != null ? saved.getUpdatedAt() : saved.getCreatedAt()
         );
     }
 
@@ -365,6 +389,9 @@ public class VisitorAuthorizationService {
     }
 
     private VisitorAuthorizationResponse toResponse(VisitorAuthorization a) {
+        String buildingName = (a.getFlat() != null && a.getFlat().getBuilding() != null)
+                ? a.getFlat().getBuilding().getName() : null;
+
         return new VisitorAuthorizationResponse(
                 a.getId(),
                 a.getVisitor().getId(),
@@ -372,8 +399,10 @@ public class VisitorAuthorizationService {
                 a.getVisitor().getMobileNumber(),
                 a.getVisitor().getVisitorType(),
                 a.getVisitor().getVehicleNumber(),
+                a.getVisitor().getPhotoUrl(),
                 a.getSociety().getId(),
                 a.getSociety().getName(),
+                buildingName,
                 a.getFlat().getId(),
                 a.getFlat().getNumber(),
                 a.getResident().getId(),

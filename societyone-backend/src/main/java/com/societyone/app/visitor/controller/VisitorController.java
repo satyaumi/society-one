@@ -86,6 +86,40 @@ public class VisitorController {
         );
     }
 
+    @PostMapping("/photo")
+    public ApiResponse<java.util.Map<String, String>> uploadPhoto(
+            Authentication authentication,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file
+    ) {
+        User actor = CurrentUser.require(authentication);
+        String photoUrl = visitorService.uploadVisitorPhoto(file);
+        return ApiResponse.success(java.util.Map.of("photoUrl", photoUrl));
+    }
+
+    @GetMapping("/lookup")
+    public ApiResponse<VisitorResponse> lookupByMobile(
+            Authentication authentication,
+            @RequestParam("mobile") String mobile
+    ) {
+        User actor = CurrentUser.require(authentication);
+        return ApiResponse.success(
+                visitorService.findByMobile(actor, mobile).orElse(null)
+        );
+    }
+
+    @PatchMapping("/{visitorId:\\d+}/photo")
+    public ApiResponse<VisitorResponse> updateVisitorPhoto(
+            Authentication authentication,
+            @PathVariable Long visitorId,
+            @RequestBody java.util.Map<String, String> body
+    ) {
+        User actor = CurrentUser.require(authentication);
+        String photoUrl = body.get("photoUrl");
+        return ApiResponse.success(
+                visitorService.updateVisitorPhoto(actor, visitorId, photoUrl)
+        );
+    }
+
     // =========================================================
     // VISIT REQUEST
     // =========================================================

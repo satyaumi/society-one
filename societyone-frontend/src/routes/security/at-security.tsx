@@ -20,7 +20,9 @@ import {
   PageIntro,
   RequestRow,
   SectionHeading,
+  StatGrid,
 } from "@/components/societyone";
+import { ViewAuthorizationModal } from "@/components/ViewAuthorizationModal";
 import { authService, visitorService } from "@/services";
 import { requireRole } from "@/lib/auth/require-auth";
 import type { User, VisitRequest } from "@/types/domain";
@@ -44,6 +46,8 @@ function SecurityAtDeskPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [selectedAuthRequest, setSelectedAuthRequest] = useState<VisitRequest | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   async function loadData() {
     try {
@@ -221,6 +225,10 @@ function SecurityAtDeskPage() {
                   <RequestRow
                     key={request.id}
                     request={request}
+                    onViewAuthorization={(req) => {
+                      setSelectedAuthRequest(req);
+                      setShowAuthModal(true);
+                    }}
                     actions={
                       <Button
                         size="sm"
@@ -291,6 +299,18 @@ function SecurityAtDeskPage() {
           </section>
         </div>
       </div>
+
+      <ViewAuthorizationModal
+        open={showAuthModal}
+        onOpenChange={setShowAuthModal}
+        request={selectedAuthRequest}
+        onCheckIn={async (id) => {
+          if (selectedAuthRequest) {
+            await handleCheckIn(id, selectedAuthRequest.visitor.name);
+          }
+        }}
+        isCheckingIn={busyId === selectedAuthRequest?.id}
+      />
     </AppShell>
   );
 }

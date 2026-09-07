@@ -32,9 +32,19 @@ import com.societyone.app.visitor.repository.VisitorRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 @Service
 @Transactional
@@ -102,6 +112,10 @@ public class VisitorService {
                             .trim()
                             .toUpperCase()
             );
+        }
+
+        if (request.photoUrl() != null && !request.photoUrl().isBlank()) {
+            visitor.setPhotoUrl(request.photoUrl().trim());
         }
 
         return toVisitorResponse(
@@ -298,6 +312,11 @@ public class VisitorService {
         visitRequest.setVehicleNumber(
                 request.vehicleNumber()
         );
+
+        if (request.photoUrl() != null && !request.photoUrl().isBlank()) {
+            visitor.setPhotoUrl(request.photoUrl().trim());
+            visitorRepository.save(visitor);
+        }
 
         return toVisitRequestResponse(
                 visitRequestRepository.save(
@@ -1063,6 +1082,62 @@ public class VisitorService {
     }
 
     // ============================================================
+    // Photo handling & lookup
+    // ============================================================
+
+    public String uploadVisitorPhoto(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No file uploaded");
+        }
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File size must be under 5MB");
+        }
+        String contentType = file.getContentType();
+        Set<String> allowedTypes = Set.of("image/jpeg", "image/png", "image/webp");
+        if (contentType == null || !allowedTypes.contains(contentType.toLowerCase(Locale.ROOT))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only JPG, PNG, and WebP images are allowed");
+        }
+
+        try {
+            Path uploadDir = Paths.get("uploads", "visitors");
+            if (!Files.exists(uploadDir)) {
+                Files.createDirectories(uploadDir);
+            }
+            String extension = switch (contentType.toLowerCase(Locale.ROOT)) {
+                case "image/png" -> ".png";
+                case "image/webp" -> ".webp";
+                default -> ".jpg";
+            };
+            String filename = "visitor_" + UUID.randomUUID() + extension;
+            Path targetPath = uploadDir.resolve(filename);
+            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+
+            return "/uploads/visitors/" + filename;
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save visitor image");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<VisitorResponse> findByMobile(User actor, String mobileNumber) {
+        requireAuthenticated(actor);
+        if (mobileNumber == null || mobileNumber.isBlank()) {
+            return Optional.empty();
+        }
+        return visitorRepository.findFirstByMobileNumber(mobileNumber.trim())
+                .map(this::toVisitorResponse);
+    }
+
+    public VisitorResponse updateVisitorPhoto(User actor, Long visitorId, String photoUrl) {
+        requireAuthenticated(actor);
+        Visitor visitor = visitorRepository.findById(visitorId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Visitor not found"));
+        validateVisitorAccess(actor, visitor);
+        visitor.setPhotoUrl(photoUrl != null && !photoUrl.isBlank() ? photoUrl.trim() : null);
+        return toVisitorResponse(visitorRepository.save(visitor));
+    }
+
+    // ============================================================
     // DTO mapping
     // ============================================================
 
@@ -1075,6 +1150,7 @@ public class VisitorService {
                 visitor.getMobileNumber(),
                 visitor.getVisitorType(),
                 visitor.getVehicleNumber(),
+                visitor.getPhotoUrl(),
                 visitor.getCreatedAt()
         );
     }
@@ -1082,36 +1158,32 @@ public class VisitorService {
     private VisitRequestResponse toVisitRequestResponse(
             VisitRequest request
     ) {
+        String buildingName = (request.getFlat() != null && request.getFlat().getBuilding() != null)
+                ? request.getFlat().getBuilding().getName() : null;
+
         return new VisitRequestResponse(
-
                 request.getId(),
-
                 request.getVisitor().getId(),
                 request.getVisitor().getFullName(),
                 request.getVisitor().getMobileNumber(),
                 request.getVisitor().getVisitorType(),
-
+                request.getVisitor().getPhotoUrl(),
                 request.getSociety().getId(),
                 request.getSociety().getName(),
-
+                buildingName,
                 request.getFlat().getId(),
                 request.getFlat().getNumber(),
-
                 request.getResident().getId(),
                 request.getResident().getFullName(),
-
                 request.getSource(),
-
                 request.getRequestStatus(),
                 request.getVisitStatus(),
-
                 request.getExpectedDate(),
                 request.getExpectedTime(),
-
                 request.getPurpose(),
                 request.getVehicleNumber(),
-
-                request.getCreatedAt()
+                request.getCreatedAt(),
+                request.getUpdatedAt() != null ? request.getUpdatedAt() : request.getCreatedAt()
         );
     }
 }

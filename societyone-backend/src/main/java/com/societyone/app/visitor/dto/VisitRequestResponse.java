@@ -17,9 +17,11 @@ public record VisitRequestResponse(
         String visitorName,
         String visitorMobile,
         VisitorType visitorType,
+        String visitorPhotoUrl,
 
         Long societyId,
         String societyName,
+        String buildingName,
 
         Long flatId,
         String flatNumber,
@@ -38,6 +40,53 @@ public record VisitRequestResponse(
         String purpose,
         String vehicleNumber,
 
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt
 ) {
+    public VisitRequestResponse(
+            Long id,
+            Long visitorId,
+            String visitorName,
+            String visitorMobile,
+            VisitorType visitorType,
+            Long societyId,
+            String societyName,
+            Long flatId,
+            String flatNumber,
+            Long residentId,
+            String residentName,
+            VisitSource source,
+            VisitRequestStatus requestStatus,
+            VisitStatus visitStatus,
+            LocalDate expectedDate,
+            LocalTime expectedTime,
+            String purpose,
+            String vehicleNumber,
+            OffsetDateTime createdAt
+    ) {
+        this(
+                id,
+                visitorId,
+                visitorName,
+                visitorMobile,
+                visitorType,
+                null,
+                societyId,
+                societyName,
+                null,
+                flatId,
+                flatNumber,
+                residentId,
+                residentName,
+                source,
+                requestStatus,
+                visitStatus,
+                expectedDate,
+                expectedTime,
+                purpose,
+                vehicleNumber,
+                createdAt,
+                createdAt
+        );
+    }
 }

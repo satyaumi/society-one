@@ -25,10 +25,13 @@ import {
   PageIntro,
   SectionHeading,
 } from "@/components/societyone";
+import { VisitorPhotoUpload } from "@/components/VisitorPhotoUpload";
+import { resolveMediaUrl } from "@/lib/media-url";
 import {
   authService,
   residentService,
   visitorAuthorizationService,
+  visitorService,
 } from "@/services";
 import { requireRole } from "@/lib/auth/require-auth";
 import type {
@@ -67,6 +70,9 @@ function RegularVisitorsPage() {
   const [authorizationType, setAuthorizationType] = useState<AuthorizationType>("PERMANENT");
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [existingPhotoReused, setExistingPhotoReused] = useState(false);
+  const [lookingUpMobile, setLookingUpMobile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [residentFlatId, setResidentFlatId] = useState<string>("");
 
@@ -134,6 +140,28 @@ function RegularVisitorsPage() {
     }
   }
 
+  async function handleMobileBlur() {
+    const cleanMobile = mobileNumber.trim();
+    if (cleanMobile.length >= 10) {
+      try {
+        setLookingUpMobile(true);
+        const existing = await visitorService.lookupByMobile(cleanMobile);
+        if (existing) {
+          if (!fullName) setFullName(existing.name);
+          if (existing.visitorType) setVisitorType(existing.visitorType);
+          if (existing.photoUrl) {
+            setPhotoUrl(existing.photoUrl);
+            setExistingPhotoReused(true);
+          }
+        }
+      } catch {
+        // Silently ignore lookup error
+      } finally {
+        setLookingUpMobile(false);
+      }
+    }
+  }
+
   async function handleAddSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!residentFlatId) {
@@ -142,6 +170,11 @@ function RegularVisitorsPage() {
     }
     if (!fullName.trim() || !mobileNumber.trim()) {
       setError("Visitor name and mobile number are required.");
+      return;
+    }
+
+    if (!photoUrl.trim()) {
+      setError("Visitor photo is required for first-time regular visitor registration.");
       return;
     }
 
@@ -154,6 +187,7 @@ function RegularVisitorsPage() {
         mobileNumber: mobileNumber.trim(),
         visitorType,
         vehicleNumber: vehicleNumber.trim() ? vehicleNumber.trim().toUpperCase() : undefined,
+        photoUrl: photoUrl.trim() || undefined,
         flatId: residentFlatId,
         authorizationType,
         validUntil: authorizationType === "CUSTOM_EXPIRY" ? validUntil : undefined,
@@ -166,6 +200,8 @@ function RegularVisitorsPage() {
       setFullName("");
       setMobileNumber("");
       setVehicleNumber("");
+      setPhotoUrl("");
+      setExistingPhotoReused(false);
       setNotes("");
       setAuthorizationType("PERMANENT");
       setValidUntil("");
@@ -229,16 +265,42 @@ function RegularVisitorsPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="rv-mobile">Mobile Number</Label>
-                <Input
-                  id="rv-mobile"
-                  value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value)}
-                  placeholder="10-digit mobile number"
-                  required
-                  className="mt-1"
-                />
+                <Label htmlFor="reg-mobile">Mobile Number</Label>
+                <div className="relative">
+                  <Input
+                    id="reg-mobile"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value)}
+                    onBlur={() => void handleMobileBlur()}
+                    placeholder="10-digit mobile number"
+                    required
+                    className="mt-1"
+                  />
+                  {lookingUpMobile && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="size-4 animate-spin text-brand-blue" />
+                    </div>
+                  )}
+                </div>
               </div>
+            </div>
+
+            {/* Photo Upload for Regular Visitor */}
+            <div className="pt-1">
+              <VisitorPhotoUpload
+                photoUrl={photoUrl}
+                onPhotoChange={(url) => {
+                  setPhotoUrl(url || "");
+                  setExistingPhotoReused(false);
+                }}
+                required={!existingPhotoReused}
+                existingPhotoReused={existingPhotoReused}
+                helperText={
+                  existingPhotoReused
+                    ? "Existing visitor photo found on file and will be reused."
+                    : "Mandatory for first-time regular visitor registration. Reused for all future visits."
+                }
+              />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -335,9 +397,19 @@ function RegularVisitorsPage() {
                   >
                     <div>
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2.5">
-                          <div className="grid size-10 shrink-0 place-items-center rounded-full bg-info-soft font-display font-bold text-brand-blue">
-                            <UserRound className="size-5" />
+                        <div className="flex items-center gap-3">
+                          <div className="relative size-12 shrink-0 overflow-hidden rounded-xl border border-border bg-info-soft shadow-xs">
+                            {item.photoUrl ? (
+                              <img
+                                src={resolveMediaUrl(item.photoUrl)}
+                                alt={item.visitorName}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="grid h-full w-full place-items-center font-display text-lg font-bold text-brand-blue">
+                                {item.visitorName.slice(0, 1).toUpperCase()}
+                              </div>
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="truncate font-semibold">{item.visitorName}</p>

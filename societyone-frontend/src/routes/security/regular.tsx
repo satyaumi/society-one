@@ -27,6 +27,8 @@ import {
   PageIntro,
   SectionHeading,
 } from "@/components/societyone";
+import { VisitorPhotoUpload } from "@/components/VisitorPhotoUpload";
+import { resolveMediaUrl } from "@/lib/media-url";
 import {
   authService,
   visitorAuthorizationService,
@@ -75,6 +77,9 @@ function SecurityRegularPage() {
   const [authorizationType, setAuthorizationType] = useState<AuthorizationType>("PERMANENT");
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [existingPhotoReused, setExistingPhotoReused] = useState(false);
+  const [lookingUpMobile, setLookingUpMobile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function loadData() {
@@ -130,6 +135,7 @@ function SecurityRegularPage() {
         visitorMobile: string;
         visitorType: VisitorType;
         vehicleNumber?: string;
+        photoUrl?: string;
         authorizations: VisitorAuthorization[];
       }
     >();
@@ -143,8 +149,14 @@ function SecurityRegularPage() {
           visitorMobile: auth.visitorMobile,
           visitorType: auth.visitorType,
           vehicleNumber: auth.vehicleNumber,
+          photoUrl: auth.photoUrl,
           authorizations: [],
         });
+      } else {
+        const existing = map.get(vKey)!;
+        if (!existing.photoUrl && auth.photoUrl) {
+          existing.photoUrl = auth.photoUrl;
+        }
       }
       map.get(vKey)!.authorizations.push(auth);
     }
@@ -184,18 +196,53 @@ function SecurityRegularPage() {
     }
   }
 
-  function openAddForVisitor(v: { visitorId: string; visitorName: string; visitorMobile: string; visitorType: VisitorType }) {
+  function openAddForVisitor(v: {
+    visitorId: string;
+    visitorName: string;
+    visitorMobile: string;
+    visitorType: VisitorType;
+    photoUrl?: string;
+  }) {
     setTargetVisitorId(v.visitorId);
     setFullName(v.visitorName);
     setMobileNumber(v.visitorMobile);
     setVisitorType(v.visitorType);
+    setPhotoUrl(v.photoUrl || "");
+    setExistingPhotoReused(Boolean(v.photoUrl));
     setShowAddModal(true);
+  }
+
+  async function handleMobileBlur() {
+    const cleanMobile = mobileNumber.trim();
+    if (cleanMobile.length >= 10 && !targetVisitorId) {
+      try {
+        setLookingUpMobile(true);
+        const existing = await visitorService.lookupByMobile(cleanMobile);
+        if (existing) {
+          if (!fullName) setFullName(existing.name);
+          if (existing.visitorType) setVisitorType(existing.visitorType);
+          if (existing.photoUrl) {
+            setPhotoUrl(existing.photoUrl);
+            setExistingPhotoReused(true);
+          }
+        }
+      } catch {
+        // Silently ignore lookup errors
+      } finally {
+        setLookingUpMobile(false);
+      }
+    }
   }
 
   async function handleAddSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedFlatId) {
       setError("Please select a flat.");
+      return;
+    }
+
+    if (!targetVisitorId && !photoUrl.trim()) {
+      setError("Visitor photo is required for first-time regular visitor registration.");
       return;
     }
 
@@ -209,6 +256,7 @@ function SecurityRegularPage() {
         mobileNumber: mobileNumber.trim(),
         visitorType,
         vehicleNumber: vehicleNumber.trim() ? vehicleNumber.trim().toUpperCase() : undefined,
+        photoUrl: photoUrl.trim() || undefined,
         flatId: selectedFlatId,
         residentId: selectedResidentId ? Number(selectedResidentId) : undefined,
         authorizationType,
@@ -223,6 +271,8 @@ function SecurityRegularPage() {
       setFullName("");
       setMobileNumber("");
       setVehicleNumber("");
+      setPhotoUrl("");
+      setExistingPhotoReused(false);
       setNotes("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add authorization.");
@@ -247,6 +297,8 @@ function SecurityRegularPage() {
                 setTargetVisitorId(null);
                 setFullName("");
                 setMobileNumber("");
+                setPhotoUrl("");
+                setExistingPhotoReused(false);
                 setShowAddModal(true);
               }}
               className="bg-brand-blue hover:bg-brand-blue/90"
@@ -306,16 +358,42 @@ function SecurityRegularPage() {
               </div>
               <div>
                 <Label htmlFor="sec-mobile">Mobile Number</Label>
-                <Input
-                  id="sec-mobile"
-                  value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value)}
-                  placeholder="10-digit mobile number"
-                  disabled={Boolean(targetVisitorId)}
-                  required
-                  className="mt-1"
-                />
+                <div className="relative">
+                  <Input
+                    id="sec-mobile"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value)}
+                    onBlur={() => void handleMobileBlur()}
+                    placeholder="10-digit mobile number"
+                    disabled={Boolean(targetVisitorId)}
+                    required
+                    className="mt-1"
+                  />
+                  {lookingUpMobile && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="size-4 animate-spin text-brand-blue" />
+                    </div>
+                  )}
+                </div>
               </div>
+            </div>
+
+            {/* Reusable Photo Upload Component */}
+            <div className="pt-1">
+              <VisitorPhotoUpload
+                photoUrl={photoUrl}
+                onPhotoChange={(url) => {
+                  setPhotoUrl(url || "");
+                  setExistingPhotoReused(false);
+                }}
+                required={!targetVisitorId && !existingPhotoReused}
+                existingPhotoReused={existingPhotoReused}
+                helperText={
+                  existingPhotoReused
+                    ? "Existing photo found on file and will be reused for this authorization."
+                    : "Mandatory for first-time regular visitor registration. Reused for all future visits."
+                }
+              />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -465,11 +543,21 @@ function SecurityRegularPage() {
                 key={v.visitorId}
                 className="rounded-xl border border-border bg-card p-5 shadow-sm transition-all"
               >
-                {/* Visitor Header */}
+                {/* Visitor Header with Prominent Photo for Identity Verification */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="grid size-12 shrink-0 place-items-center rounded-full bg-info-soft font-display font-bold text-brand-blue text-lg">
-                      {v.visitorName.slice(0, 1).toUpperCase()}
+                  <div className="flex items-center gap-3.5">
+                    <div className="relative size-16 shrink-0 overflow-hidden rounded-xl border-2 border-border bg-info-soft shadow-sm">
+                      {v.photoUrl ? (
+                        <img
+                          src={resolveMediaUrl(v.photoUrl)}
+                          alt={v.visitorName}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center font-display text-2xl font-bold text-brand-blue">
+                          {v.visitorName.slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">

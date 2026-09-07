@@ -20,5 +20,22 @@ public record VisitorAuthorizationRequest(
         AuthorizationType authorizationType,
         LocalDate validFrom,
         LocalDate validUntil,
-        String notes
-) {}
+        String notes,
+        String photoUrl
+) {
+    public VisitorAuthorizationRequest(
+            Long visitorId,
+            String fullName,
+            String mobileNumber,
+            VisitorType visitorType,
+            String vehicleNumber,
+            Long flatId,
+            Long residentId,
+            AuthorizationType authorizationType,
+            LocalDate validFrom,
+            LocalDate validUntil,
+            String notes
+    ) {
+        this(visitorId, fullName, mobileNumber, visitorType, vehicleNumber, flatId, residentId, authorizationType, validFrom, validUntil, notes, null);
+    }
+}

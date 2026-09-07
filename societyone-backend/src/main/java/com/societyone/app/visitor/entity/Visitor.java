@@ -25,6 +25,9 @@ public class Visitor {
     @Column(name = "vehicle_number", length = 30)
     private String vehicleNumber;
 
+    @Column(name = "photo_url", length = 500)
+    private String photoUrl;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -77,6 +80,14 @@ public class Visitor {
 
     public void setVehicleNumber(String vehicleNumber) {
         this.vehicleNumber = vehicleNumber;
+    }
+
+    public String getPhotoUrl() {
+        return photoUrl;
+    }
+
+    public void setPhotoUrl(String photoUrl) {
+        this.photoUrl = photoUrl;
     }
 
     public OffsetDateTime getCreatedAt() {

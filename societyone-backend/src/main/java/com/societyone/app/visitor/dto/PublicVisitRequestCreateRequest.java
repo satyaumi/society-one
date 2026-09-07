@@ -36,5 +36,7 @@ public record PublicVisitRequestCreateRequest(
 
         LocalDate expectedDate,
 
-        LocalTime expectedTime
+        LocalTime expectedTime,
+
+        String photoUrl
 ) {}

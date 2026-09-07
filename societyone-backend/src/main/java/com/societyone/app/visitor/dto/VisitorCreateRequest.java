@@ -19,6 +19,17 @@ public record VisitorCreateRequest(
         VisitorType visitorType,
 
         @Size(max = 30)
-        String vehicleNumber
+        String vehicleNumber,
+
+        @Size(max = 500)
+        String photoUrl
 ) {
+    public VisitorCreateRequest(
+            String fullName,
+            String mobileNumber,
+            VisitorType visitorType,
+            String vehicleNumber
+    ) {
+        this(fullName, mobileNumber, visitorType, vehicleNumber, null);
+    }
 }

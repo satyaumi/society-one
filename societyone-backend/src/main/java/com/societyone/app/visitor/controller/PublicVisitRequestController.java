@@ -24,10 +24,12 @@ import com.societyone.app.visitor.dto.VisitRequestResponse;
 import com.societyone.app.visitor.entity.*;
 import com.societyone.app.visitor.repository.VisitRequestRepository;
 import com.societyone.app.visitor.repository.VisitorRepository;
+import com.societyone.app.visitor.service.VisitorService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -37,6 +39,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/public")
+@Transactional
 public class PublicVisitRequestController {
 
     private final SocietyRepository societyRepository;
@@ -49,6 +52,7 @@ public class PublicVisitRequestController {
     private final VisitRequestRepository visitRequestRepository;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final VisitorService visitorService;
 
     public PublicVisitRequestController(
             SocietyRepository societyRepository,
@@ -60,7 +64,8 @@ public class PublicVisitRequestController {
             VisitorRepository visitorRepository,
             VisitRequestRepository visitRequestRepository,
             NotificationService notificationService,
-            AuditService auditService
+            AuditService auditService,
+            VisitorService visitorService
     ) {
         this.societyRepository = societyRepository;
         this.buildingRepository = buildingRepository;
@@ -72,6 +77,7 @@ public class PublicVisitRequestController {
         this.visitRequestRepository = visitRequestRepository;
         this.notificationService = notificationService;
         this.auditService = auditService;
+        this.visitorService = visitorService;
     }
 
     @GetMapping("/societies/structure")
@@ -177,8 +183,17 @@ public class PublicVisitRequestController {
                     if (request.vehicleNumber() != null && !request.vehicleNumber().isBlank()) {
                         v.setVehicleNumber(request.vehicleNumber().trim().toUpperCase());
                     }
+                    if (request.photoUrl() != null && !request.photoUrl().isBlank()) {
+                        v.setPhotoUrl(request.photoUrl().trim());
+                    }
                     return visitorRepository.saveAndFlush(v);
                 });
+
+        if (request.photoUrl() != null && !request.photoUrl().isBlank()
+                && (visitor.getPhotoUrl() == null || visitor.getPhotoUrl().isBlank())) {
+            visitor.setPhotoUrl(request.photoUrl().trim());
+            visitor = visitorRepository.saveAndFlush(visitor);
+        }
 
         VisitRequest vr = new VisitRequest();
         vr.setVisitor(visitor);
@@ -226,15 +241,28 @@ public class PublicVisitRequestController {
         return ApiResponse.success(toResponse(vr));
     }
 
+    @PostMapping("/visitor-photo")
+    public ApiResponse<Map<String, String>> uploadVisitorPhoto(
+            @RequestParam("file") MultipartFile file
+    ) {
+        String photoUrl = visitorService.uploadVisitorPhoto(file);
+        return ApiResponse.success(Map.of("photoUrl", photoUrl));
+    }
+
     private VisitRequestResponse toResponse(VisitRequest r) {
+        String buildingName = (r.getFlat() != null && r.getFlat().getBuilding() != null)
+                ? r.getFlat().getBuilding().getName() : null;
+
         return new VisitRequestResponse(
                 r.getId(),
                 r.getVisitor().getId(),
                 r.getVisitor().getFullName(),
                 r.getVisitor().getMobileNumber(),
                 r.getVisitor().getVisitorType(),
+                r.getVisitor().getPhotoUrl(),
                 r.getSociety().getId(),
                 r.getSociety().getName(),
+                buildingName,
                 r.getFlat().getId(),
                 r.getFlat().getNumber(),
                 r.getResident().getId(),
@@ -246,7 +274,8 @@ public class PublicVisitRequestController {
                 r.getExpectedTime(),
                 r.getPurpose(),
                 r.getVehicleNumber(),
-                r.getCreatedAt()
+                r.getCreatedAt(),
+                r.getUpdatedAt() != null ? r.getUpdatedAt() : r.getCreatedAt()
         );
     }
 }

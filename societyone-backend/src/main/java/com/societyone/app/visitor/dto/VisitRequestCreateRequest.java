@@ -34,6 +34,22 @@ public record VisitRequestCreateRequest(
         String purpose,
 
         @Size(max = 30)
-        String vehicleNumber
+        String vehicleNumber,
+
+        @Size(max = 500)
+        String photoUrl
 ) {
+    public VisitRequestCreateRequest(
+            Long visitorId,
+            Long societyId,
+            Long flatId,
+            Long residentId,
+            VisitSource source,
+            LocalDate expectedDate,
+            LocalTime expectedTime,
+            String purpose,
+            String vehicleNumber
+    ) {
+        this(visitorId, societyId, flatId, residentId, source, expectedDate, expectedTime, purpose, vehicleNumber, null);
+    }
 }
