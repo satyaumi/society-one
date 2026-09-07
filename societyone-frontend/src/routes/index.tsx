@@ -5,7 +5,9 @@ import {
   ArrowUpRight,
   Bell,
   Check,
+  ChevronLeft,
   ChevronRight,
+  Calendar,
   Clock,
   FileCheck2,
   Home,
@@ -24,7 +26,12 @@ import {
 } from "lucide-react";
 import societyOneLogo from "@/assets/societyone-logo.png";
 import { Button } from "@/components/ui/button";
-import { publicService, type PublicSummary } from "@/services";
+import { publicService, notificationService, type PublicSummary } from "@/services";
+import type { Announcement } from "@/types/domain";
+import {
+  AnnouncementDetailsModal,
+  getAnnouncementImage,
+} from "@/components/notifications/AnnouncementDetailsModal";
 import { authStore } from "@/lib/auth/auth-store";
 import { WorkflowDemo } from "@/components/landing/WorkflowDemo";
 
@@ -57,6 +64,34 @@ function HomePage() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<PublicSummary | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [publicAnnouncements, setPublicAnnouncements] = useState<Announcement[]>([]);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
+  const [currentPublicIndex, setCurrentPublicIndex] = useState(0);
+
+  const AUTOSLIDE_INTERVAL = 5000;
+
+  // Auto-slide public events, then loop back to top pinned event (index 0) after interval
+  useEffect(() => {
+    if (publicAnnouncements.length <= 1 || selectedAnnouncement !== null) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setCurrentPublicIndex((prev) => (prev + 1) % publicAnnouncements.length);
+    }, AUTOSLIDE_INTERVAL);
+
+    return () => clearInterval(timer);
+  }, [publicAnnouncements.length, currentPublicIndex, selectedAnnouncement]);
+
+  const handleNextPublic = () => {
+    if (publicAnnouncements.length <= 1) return;
+    setCurrentPublicIndex((prev) => (prev + 1) % publicAnnouncements.length);
+  };
+
+  const handlePrevPublic = () => {
+    if (publicAnnouncements.length <= 1) return;
+    setCurrentPublicIndex((prev) => (prev - 1 + publicAnnouncements.length) % publicAnnouncements.length);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -68,6 +103,16 @@ function HomePage() {
       .catch(() => {
         // Fallback default if backend not reachable
       });
+
+    notificationService
+      .listPublicAnnouncements()
+      .then((data) => {
+        if (mounted) setPublicAnnouncements(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load public announcements:", err);
+      });
+
     return () => {
       mounted = false;
     };
@@ -234,6 +279,165 @@ function HomePage() {
           </div>
         )}
       </header>
+
+      {/* Public Announcements Banner - Wide Hero Card Carousel */}
+      {publicAnnouncements.length > 0 && (
+        <aside
+          aria-label="Public Society Events & Notices"
+          className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-4 sm:mt-6 mb-2"
+        >
+          {(() => {
+            const currentPublic = publicAnnouncements[currentPublicIndex] || publicAnnouncements[0];
+            const heroImage = getAnnouncementImage(currentPublic);
+
+            return (
+              <div className="relative overflow-hidden rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/60 p-6 sm:p-8 shadow-sm backdrop-blur-md dark:from-slate-900/90 dark:via-slate-900 dark:to-emerald-950/30">
+                {/* Auto-slide Progress Indicator */}
+                {publicAnnouncements.length > 1 && !selectedAnnouncement && (
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500/10 dark:bg-emerald-400/10 overflow-hidden rounded-t-3xl">
+                    <div
+                      key={`pub-prog-${currentPublicIndex}-${publicAnnouncements.length}`}
+                      className="h-full bg-emerald-500/50 dark:bg-emerald-400/60 animate-announcement-progress"
+                    />
+                  </div>
+                )}
+
+                <div className="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-emerald-400/10 blur-3xl dark:bg-emerald-500/5" />
+
+                {/* Top Bar with Counter */}
+                <div className="relative z-10 flex items-center justify-between gap-3 mb-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-xs">
+                      <Sparkles className="size-3.5" />
+                      Society Community Event
+                    </span>
+                    <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                      Open for Public Visitors & Residents
+                    </span>
+                  </div>
+
+                  {publicAnnouncements.length > 1 && (
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      {currentPublicIndex + 1} of {publicAnnouncements.length}
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  key={currentPublic.id}
+                  className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-6 items-center animate-in fade-in-50 duration-300"
+                >
+                  {/* Left content */}
+                  <div className="md:col-span-7 lg:col-span-8 flex flex-col justify-between space-y-3">
+                    <h2
+                      onClick={() => setSelectedAnnouncement(currentPublic)}
+                      className="cursor-pointer font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors leading-snug"
+                    >
+                      {currentPublic.title}
+                    </h2>
+
+                    {(currentPublic.eventDate || currentPublic.eventTime || currentPublic.purpose) && (
+                      <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-medium text-foreground/80">
+                        {currentPublic.eventDate && (
+                          <div className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100/70 dark:bg-emerald-950/40 px-2.5 py-1 text-emerald-900 dark:text-emerald-300">
+                            <Calendar className="size-3.5 text-emerald-600" />
+                            <span>{currentPublic.eventDate}</span>
+                          </div>
+                        )}
+                        {currentPublic.eventTime && (
+                          <div className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100/70 dark:bg-amber-950/40 px-2.5 py-1 text-amber-900 dark:text-amber-300">
+                            <Clock className="size-3.5 text-amber-600" />
+                            <span>{currentPublic.eventTime}</span>
+                          </div>
+                        )}
+                        {currentPublic.purpose && (
+                          <span className="text-xs text-muted-foreground">
+                            • {currentPublic.purpose}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="text-sm sm:text-base leading-relaxed text-muted-foreground line-clamp-2">
+                      {currentPublic.message}
+                    </p>
+
+                    {/* Bottom row: Explore Button + Navigation Carousel Controls */}
+                    <div className="pt-2 flex flex-wrap items-center justify-between gap-4">
+                      <Button
+                        onClick={() => setSelectedAnnouncement(currentPublic)}
+                        className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 shadow-sm transition-all hover:shadow-md inline-flex items-center gap-2 group"
+                      >
+                        <span>Explore Event Details</span>
+                        <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                      </Button>
+
+                      {publicAnnouncements.length > 1 && (
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 mr-2">
+                            {publicAnnouncements.map((_, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setCurrentPublicIndex(idx)}
+                                aria-label={`Jump to event ${idx + 1}`}
+                                className={`size-2.5 rounded-full transition-all duration-300 ${
+                                  idx === currentPublicIndex
+                                    ? "w-6 bg-emerald-600"
+                                    : "bg-emerald-300/60 hover:bg-emerald-400 dark:bg-emerald-800"
+                                }`}
+                              />
+                            ))}
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="size-8 rounded-full border-border/80 text-foreground hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                            onClick={handlePrevPublic}
+                            aria-label="Previous event"
+                          >
+                            <ChevronLeft className="size-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="size-8 rounded-full border-border/80 text-foreground hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                            onClick={handleNextPublic}
+                            aria-label="Next event"
+                          >
+                            <ChevronRight className="size-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right photo */}
+                  <div className="md:col-span-5 lg:col-span-4">
+                    <div
+                      onClick={() => setSelectedAnnouncement(currentPublic)}
+                      className="group relative cursor-pointer overflow-hidden rounded-2xl border border-emerald-500/20 bg-muted/40 shadow-sm transition-all duration-300 hover:shadow-xl hover:border-emerald-500/40"
+                    >
+                      <img
+                        src={heroImage}
+                        alt={currentPublic.title}
+                        className="h-48 sm:h-56 md:h-60 w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 flex items-end p-4">
+                        <span className="text-xs font-semibold text-white inline-flex items-center gap-1.5">
+                          View details & location <ArrowRight className="size-3" />
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </aside>
+      )}
 
       <main>
         {/* Hero Section */}
@@ -594,6 +798,13 @@ function HomePage() {
           </Link>
         </span>
       </footer>
+
+      {selectedAnnouncement && (
+        <AnnouncementDetailsModal
+          announcement={selectedAnnouncement}
+          onClose={() => setSelectedAnnouncement(null)}
+        />
+      )}
     </div>
   );
 }

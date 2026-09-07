@@ -28,4 +28,19 @@ public class DashboardController {
                 "Dashboard summary"
         );
     }
+
+    @GetMapping("/command-center")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    public ApiResponse<com.societyone.app.dashboard.dto.SocietyCommandCenterResponse> getCommandCenter(
+            Authentication authentication,
+            @RequestParam(required = false) Long buildingId,
+            @RequestParam(required = false) String timeRange
+    ) {
+        User actor = CurrentUser.require(authentication);
+        return ApiResponse.success(
+                dashboardService.getSocietyCommandCenter(actor, buildingId, timeRange),
+                "Society command center metrics retrieved successfully"
+        );
+    }
 }
+

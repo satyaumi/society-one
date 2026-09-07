@@ -41,7 +41,7 @@ public class AuditService {
         this.userRepository = userRepository;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void record(
             Long actorUserId,
             Long societyId,

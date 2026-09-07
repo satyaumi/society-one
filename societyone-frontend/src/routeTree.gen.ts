@@ -29,6 +29,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminAnnouncementsRouteImport } from './routes/admin/announcements'
 import { Route as AdminResidentsRouteImport } from './routes/admin/residents'
 import { Route as AdminSecurityStaffRouteImport } from './routes/admin/security-staff'
 import { Route as AdminSocietyRouteImport } from './routes/admin/society'
@@ -137,6 +138,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminAnnouncementsRoute = AdminAnnouncementsRouteImport.update({
+  id: '/announcements',
+  path: '/announcements',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminResidentsRoute = AdminResidentsRouteImport.update({
   id: '/residents',
   path: '/residents',
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/residents': typeof AdminResidentsRoute
   '/admin/security-staff': typeof AdminSecurityStaffRoute
   '/admin/society': typeof AdminSocietyRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/residents': typeof AdminResidentsRoute
   '/admin/security-staff': typeof AdminSecurityStaffRoute
   '/admin/society': typeof AdminSocietyRoute
@@ -251,6 +259,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/residents': typeof AdminResidentsRoute
   '/admin/security-staff': typeof AdminSecurityStaffRoute
   '/admin/society': typeof AdminSocietyRoute
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/terms'
     | '/verify-otp'
+    | '/admin/announcements'
     | '/admin/residents'
     | '/admin/security-staff'
     | '/admin/society'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/terms'
     | '/verify-otp'
+    | '/admin/announcements'
     | '/admin/residents'
     | '/admin/security-staff'
     | '/admin/society'
@@ -339,6 +350,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/terms'
     | '/verify-otp'
+    | '/admin/announcements'
     | '/admin/residents'
     | '/admin/security-staff'
     | '/admin/society'
@@ -516,6 +528,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/announcements': {
+      id: '/admin/announcements'
+      path: '/announcements'
+      fullPath: '/admin/announcements'
+      preLoaderRoute: typeof AdminAnnouncementsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/residents': {
       id: '/admin/residents'
       path: '/residents'
@@ -569,6 +588,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminAnnouncementsRoute: typeof AdminAnnouncementsRoute
   AdminResidentsRoute: typeof AdminResidentsRoute
   AdminSecurityStaffRoute: typeof AdminSecurityStaffRoute
   AdminSocietyRoute: typeof AdminSocietyRoute
@@ -577,6 +597,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminAnnouncementsRoute: AdminAnnouncementsRoute,
   AdminResidentsRoute: AdminResidentsRoute,
   AdminSecurityStaffRoute: AdminSecurityStaffRoute,
   AdminSocietyRoute: AdminSocietyRoute,

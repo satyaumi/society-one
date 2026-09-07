@@ -3,6 +3,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import {
   Bell,
   Building2,
+  CheckCheck,
   ChevronDown,
   ClipboardCheck,
   Clock3,
@@ -10,6 +11,7 @@ import {
   FileClock,
   Home,
   LogOut,
+  Megaphone,
   Menu,
   Settings,
   ShieldCheck,
@@ -38,6 +40,7 @@ export type AppPath =
   | "/security/at-security"
   | "/security/regular"
   | "/admin"
+  | "/admin/announcements"
   | "/admin/residents"
   | "/admin/security-staff"
   | "/admin/society"
@@ -68,6 +71,7 @@ const navByRole: Record<Role, { label: string; to: AppPath; icon: ReactNode }[]>
   ],
   ADMIN: [
     { label: "Overview", to: "/dashboard", icon: <Home /> },
+    { label: "Announcements", to: "/admin/announcements", icon: <Megaphone /> },
     { label: "Residents", to: "/admin/residents", icon: <Users /> },
     { label: "Security staff", to: "/admin/security-staff", icon: <ShieldCheck /> },
     { label: "Society structure", to: "/admin/society", icon: <Building2 /> },
@@ -90,14 +94,16 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
 
   useEffect(() => {
     let mounted = true;
-    void Promise.all([authService.getCurrentUser(), notificationService.list("RESIDENT")]).then(([currentUser, items]) => {
+    void Promise.all([authService.getCurrentUser(), notificationService.list()]).then(([currentUser, items]) => {
       if (mounted) {
         setUser(currentUser);
         setNotifications(items);
       }
     });
     const unsubscribe = realtimeEvents.subscribe(() => {
-      void notificationService.list("RESIDENT").then(setNotifications);
+      void notificationService.list().then((items) => {
+        if (mounted) setNotifications(items);
+      });
     });
     return () => {
       mounted = false;
@@ -118,14 +124,14 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
     <div className="app-shell-grid bg-background">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex h-dvh w-[248px] flex-col bg-sidebar text-sidebar-foreground transition-transform lg:static lg:h-full lg:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          "fixed inset-y-0 left-0 z-40 flex h-dvh max-h-dvh min-h-0 w-[248px] flex-col overflow-hidden bg-sidebar text-sidebar-foreground transition-transform duration-200 ease-in-out lg:static lg:h-full lg:max-h-dvh lg:min-h-0 lg:translate-x-0",
+          mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
         )}
       >
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border px-6 sm:h-20">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-sidebar-border px-5 sm:h-16 sm:px-6">
           <Link to="/dashboard" className="flex items-center gap-3" aria-label="SocietyOne dashboard">
-            <img src={societyOneLogo} alt="SocietyOne" className="size-9 rounded-lg object-cover" />
-            <span className="font-display text-lg font-bold">
+            <img src={societyOneLogo} alt="SocietyOne" className="size-8 sm:size-9 rounded-lg object-cover" />
+            <span className="font-display text-base sm:text-lg font-bold">
               Society<span className="text-sidebar-primary">One</span>
             </span>
           </Link>
@@ -139,12 +145,12 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
             <X />
           </Button>
         </div>
-        <div className="shrink-0 border-b border-sidebar-border px-5 py-4">
+        <div className="shrink-0 border-b border-sidebar-border px-4 py-3 sm:px-5 sm:py-3.5">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sidebar-foreground/55">
             SocietyOne workspace
           </p>
-          <div className="mt-3 flex items-center gap-3">
-            <Avatar className="size-10 shrink-0 border border-sidebar-border shadow-xs">
+          <div className="mt-2.5 flex items-center gap-3">
+            <Avatar className="size-9 shrink-0 border border-sidebar-border shadow-xs sm:size-10">
               <AvatarImage
                 src={resolveMediaUrl(user?.avatar || user?.profilePhotoUrl)}
                 alt={user?.name ?? "User"}
@@ -160,28 +166,28 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
             </div>
           </div>
         </div>
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4" aria-label="Workspace navigation">
+        <nav className="sidebar-nav-scroll min-h-0 flex-1 space-y-1 px-3 py-3 overscroll-contain" aria-label="Workspace navigation">
           {navByRole[role].map((item) => (
             <Link
               key={item.to}
               to={item.to}
               onClick={() => setMobileOpen(false)}
-              activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground" }}
-              className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground font-semibold" }}
+              className="flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             >
-              {item.icon}
-              <span>{item.label}</span>
+              <span className="shrink-0 [&>svg]:size-4">{item.icon}</span>
+              <span className="truncate">{item.label}</span>
             </Link>
           ))}
-          <div className="my-4 border-t border-sidebar-border" />
+          <div className="my-3 border-t border-sidebar-border" />
           <Link
             to="/notifications"
             onClick={() => setMobileOpen(false)}
-            activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground" }}
-            className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground font-semibold" }}
+            className="flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <Bell />
-            <span>Notifications</span>
+            <Bell className="size-4 shrink-0" />
+            <span className="truncate">Notifications</span>
             {unreadCount > 0 && (
               <span className="ml-auto grid size-5 place-items-center rounded-full bg-sidebar-primary text-[10px] font-bold text-sidebar-primary-foreground">
                 {unreadCount}
@@ -189,21 +195,21 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
             )}
           </Link>
         </nav>
-        <div className="shrink-0 border-t border-sidebar-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="shrink-0 border-t border-sidebar-border bg-sidebar/95 p-2.5 backdrop-blur sm:p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Link
             to="/settings"
             onClick={() => setMobileOpen(false)}
-            activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground" }}
-            className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground font-semibold" }}
+            className="flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <Settings className="size-4" /> Settings
+            <Settings className="size-4 shrink-0" /> <span className="truncate">Settings</span>
           </Link>
           <button
             type="button"
             onClick={() => void signOut()}
-            className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            className="mt-0.5 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <LogOut className="size-4" /> Sign out
+            <LogOut className="size-4 shrink-0" /> <span className="truncate">Sign out</span>
           </button>
         </div>
       </aside>
@@ -268,7 +274,134 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
   );
 }
 
-function NotificationPopover({ notifications, onClose }: { notifications: Notification[]; onClose: () => void }) { return <div className="fixed right-5 top-[76px] z-30 w-[min(360px,calc(100vw-40px))] rounded-xl border border-border bg-card p-4 shadow-xl"><div className="flex items-center justify-between"><h2 className="font-display font-bold">Notifications</h2><Button variant="ghost" size="icon" aria-label="Close notifications" onClick={onClose}><X /></Button></div><div className="mt-2 divide-y divide-border">{notifications.slice(0, 3).map((item) => <div key={item.id} className="flex gap-3 py-3"><div className="mt-1 size-2 shrink-0 rounded-full bg-brand-orange" /><div><p className="text-sm font-semibold">{item.title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p><p className="mt-1 text-[11px] text-muted-foreground">{item.timestamp}</p></div></div>)}</div><Link to="/notifications" className="mt-2 block text-center text-sm font-semibold text-brand-blue" onClick={onClose}>View all notifications</Link></div>; }
+function NotificationPopover({
+  notifications,
+  onClose,
+}: {
+  notifications: Notification[];
+  onClose: () => void;
+}) {
+  const unreadItems = notifications.filter((n) => !n.read);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationService.markAllRead();
+    } catch (err) {
+      console.error("Failed to mark all read:", err);
+    }
+  };
+
+  const handleItemClick = async (item: Notification) => {
+    if (!item.read) {
+      try {
+        await notificationService.markRead(item.id);
+      } catch (err) {
+        console.error("Failed to mark read:", err);
+      }
+    }
+  };
+
+  return (
+    <div className="fixed right-4 top-[72px] z-40 w-[min(380px,calc(100vw-32px))] rounded-2xl border border-border bg-card p-4 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150 sm:right-6">
+      <div className="flex items-center justify-between pb-2 border-b border-border/70">
+        <div className="flex items-center gap-2">
+          <h2 className="font-display text-base font-bold text-foreground">Notifications</h2>
+          {unreadItems.length > 0 && (
+            <span className="rounded-full bg-brand-orange/10 px-2 py-0.5 text-[11px] font-bold text-brand-orange">
+              {unreadItems.length} unread
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {unreadItems.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-muted-foreground hover:text-brand-blue"
+              onClick={() => void handleMarkAllRead()}
+            >
+              <CheckCheck className="size-3.5 mr-1" />
+              Mark all read
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 rounded-full text-muted-foreground"
+            aria-label="Close notifications"
+            onClick={onClose}
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-2 divide-y divide-border/60 max-h-[380px] overflow-y-auto pr-1">
+        {notifications.length === 0 ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            No notifications yet
+          </div>
+        ) : (
+          notifications.slice(0, 5).map((item) => (
+            <div
+              key={item.id}
+              onClick={() => void handleItemClick(item)}
+              className={cn(
+                "group flex cursor-pointer items-start gap-3 py-3 px-1 transition-colors rounded-lg hover:bg-muted/50",
+                !item.read && "bg-brand-blue/5 font-medium"
+              )}
+            >
+              <span
+                className={cn(
+                  "mt-1.5 size-2 shrink-0 rounded-full",
+                  !item.read ? "bg-brand-orange" : "bg-muted-foreground/30"
+                )}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1">
+                  <p className={cn("text-xs font-semibold truncate", !item.read ? "text-foreground" : "text-foreground/80")}>
+                    {item.title}
+                  </p>
+                  {item.category === "ANNOUNCEMENT" && (
+                    <span className="shrink-0 rounded bg-primary/10 px-1 py-0.5 text-[9px] font-bold text-primary">
+                      Notice
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                  {item.description}
+                </p>
+                <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>
+                    {item.timestamp ? new Date(item.timestamp).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }) : ""}
+                  </span>
+                  {!item.read && (
+                    <span className="text-brand-blue text-[10px]">Tap to mark read</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="mt-3 pt-2 border-t border-border/70">
+        <Link
+          to="/notifications"
+          className="block text-center text-xs font-semibold text-brand-blue hover:underline py-1"
+          onClick={onClose}
+        >
+          View all notifications →
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 export function PageIntro({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: ReactNode }) { return <div className="grid gap-5 border-b border-border pb-7 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><div><p className="text-xs font-bold uppercase tracking-[0.17em] text-brand-orange">{eyebrow}</p><h2 className="mt-2 font-display text-3xl font-bold tracking-tight text-foreground">{title}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p></div>{action && <div className="shrink-0">{action}</div>}</div>; }
 
@@ -278,7 +411,67 @@ export function StatGrid({ stats }: { stats: { label: string; value: string; hel
 
 export function StatusBadge({ status }: { status: VisitRequest["requestStatus"] | VisitRequest["visitStatus"] }) { const labels: Record<string, string> = { PENDING_RESIDENT: "Pending resident", APPROVED_BY_RESIDENT: "Resident approved", DENIED_BY_RESIDENT: "Resident denied", REJECTED_BY_RESIDENT: "Resident denied", PENDING_SECURITY: "Pending security", ACCEPTED_BY_SECURITY: "Entry accepted", DENIED_BY_SECURITY: "Entry denied", REJECTED_BY_SECURITY: "Entry denied", CANCELLED: "Cancelled", EXPIRED: "Expired", EXPECTED: "Expected", WAITING_AT_GATE: "Waiting at gate", CHECKED_IN: "Checked in", CHECKED_OUT: "Checked out", NO_SHOW: "No show" }; const positive = ["APPROVED_BY_RESIDENT", "ACCEPTED_BY_SECURITY", "CHECKED_IN", "CHECKED_OUT"].includes(status); const warning = ["PENDING_RESIDENT", "PENDING_SECURITY", "EXPECTED", "WAITING_AT_GATE"].includes(status); return <Badge variant={positive ? "default" : warning ? "secondary" : "destructive"} className={cn(positive && "bg-success text-primary-foreground", warning && "bg-warning-soft text-accent-foreground")}>{labels[status] ?? status}</Badge>; }
 
-export function RequestRow({ request, actions }: { request: VisitRequest; actions?: ReactNode }) { return <div className="grid gap-4 border-b border-border py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div className="flex min-w-0 items-center gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-full bg-info-soft font-display font-bold text-brand-blue">{request.visitor.name.slice(0, 1)}</div><div className="min-w-0"><p className="truncate font-semibold">{request.visitor.name}</p><p className="mt-1 text-xs text-muted-foreground">{request.expectedDate} · {request.expectedTime} · {request.flat.number}</p><div className="mt-2 flex flex-wrap gap-2"><StatusBadge status={request.requestStatus} /><StatusBadge status={request.visitStatus} /></div></div></div><div className="flex shrink-0 items-center gap-2">{actions}</div></div>; }
+export function RequestRow({
+  request,
+  actions,
+  onViewAuthorization,
+}: {
+  request: VisitRequest;
+  actions?: ReactNode;
+  onViewAuthorization?: (request: VisitRequest) => void;
+}) {
+  const photo = resolveMediaUrl(request.photoUrl || request.visitor.photoUrl);
+
+  return (
+    <div className="grid gap-4 border-b border-border py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="relative size-12 shrink-0 overflow-hidden rounded-xl border border-border bg-info-soft shadow-sm">
+          {photo ? (
+            <img
+              src={photo}
+              alt={request.visitor.name}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="grid h-full w-full place-items-center font-display text-lg font-bold text-brand-blue">
+              {request.visitor.name.slice(0, 1).toUpperCase()}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate font-semibold text-foreground">{request.visitor.name}</p>
+            <Badge variant="outline" className="text-[10px] capitalize px-1.5 py-0 font-normal">
+              {(request.visitorType || request.visitor.visitorType || "Guest").replace("_", " ").toLowerCase()}
+            </Badge>
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {request.expectedDate} · {request.expectedTime} · Flat {request.flat.number}
+            {request.buildingName && ` (${request.buildingName})`}
+            {request.purpose && ` · ${request.purpose}`}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <StatusBadge status={request.requestStatus} />
+            {request.requestStatus === "APPROVED_BY_RESIDENT" && onViewAuthorization && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => onViewAuthorization(request)}
+                className="h-5 text-[11px] px-2.5 rounded-full border-brand-blue/30 text-brand-blue hover:bg-brand-blue/10 flex items-center gap-1 font-medium shadow-xs"
+              >
+                <ShieldCheck className="size-3" />
+                View Authorization
+              </Button>
+            )}
+            <StatusBadge status={request.visitStatus} />
+          </div>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">{actions}</div>
+    </div>
+  );
+}
 
 export function EmptyState({ title, description, icon = <Clock3 /> }: { title: string; description: string; icon?: ReactNode }) { return <div className="grid place-items-center rounded-xl border border-dashed border-border bg-card px-5 py-12 text-center"><div className="grid size-12 place-items-center rounded-full bg-secondary text-muted-foreground">{icon}</div><h3 className="mt-4 font-display font-bold">{title}</h3><p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p></div>; }
 

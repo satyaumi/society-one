@@ -26,4 +26,8 @@ public interface FlatRepository extends JpaRepository<Flat, Long> {
     boolean existsByBuildingIdAndStatus(Long buildingId, StructureStatus status);
 
     boolean existsByFloorIdAndStatus(Long floorId, StructureStatus status);
+
+    List<Flat> findByBuildingIdOrderByNumberAsc(Long buildingId);
+
+    List<Flat> findBySocietyIdOrderByNumberAsc(Long societyId);
 }

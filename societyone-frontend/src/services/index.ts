@@ -3,6 +3,9 @@ import type {
   AuditEvent,
   DashboardSummary,
   Notification,
+  Announcement,
+  CreateAnnouncementInput,
+  UpdateAnnouncementInput,
   RegisteredVisitor,
   Role,
   Society,
@@ -10,6 +13,7 @@ import type {
   Floor,
   Flat,
   User,
+  Visitor,
   CreateVisitRequestInput,
   VisitRequest,
   PublicStructureResponse,
@@ -17,7 +21,12 @@ import type {
   VisitorAuthorization,
   AuthorizationStatus,
   VisitorType,
+  ResidentOnboardingRequest,
+  ResidentOnboardingSubmitInput,
+  FlatAllocationInput,
+  FlatAvailability,
 } from "@/types/domain";
+import type { SocietyCommandCenterResponse } from "@/types/command-center";
 
 // -------- Auth module imports --------
 import { apiFetch, ApiError } from "@/lib/auth/auth-api-client";
@@ -42,6 +51,7 @@ export interface SignupInput {
   mobileNumber?: string;
   password: string;
   intendedRole?: Role;
+  verificationToken?: string;
 }
 
 export interface VerifyOtpInput {
@@ -116,7 +126,8 @@ export interface AuthService {
   ): Promise<{ needsVerification: true; user: User } | AuthResult>;
   verifyOtp(
     input: VerifyOtpInput,
-  ): Promise<AuthResult | { verified: true }>;
+  ): Promise<AuthResult | { verified: true; verificationToken?: string; identifier?: string }>;
+  sendOtp(input: ResendOtpInput): Promise<void>;
   resendOtp(input: ResendOtpInput): Promise<void>;
   forgotPassword(
     input: ForgotPasswordInput,
@@ -170,6 +181,10 @@ export interface VisitorService {
   createPublicVisitRequest(input: PublicVisitRequestInput): Promise<VisitRequest>;
   getPublicVisitRequestStatus(id: string | number): Promise<VisitRequest>;
   getPublicStructure(): Promise<PublicStructureResponse>;
+  uploadVisitorPhoto(file: File): Promise<string>;
+  uploadPublicVisitorPhoto(file: File): Promise<string>;
+  lookupByMobile(mobile: string): Promise<Visitor | null>;
+  updateVisitorPhoto(visitorId: string | number, photoUrl: string): Promise<void>;
 }
 
 export interface VisitorAuthorizationService {
@@ -180,6 +195,7 @@ export interface VisitorAuthorizationService {
     mobileNumber: string;
     visitorType?: VisitorType;
     vehicleNumber?: string;
+    photoUrl?: string;
     flatId: string | number;
     residentId?: string | number;
     authorizationType?: string;
@@ -272,6 +288,7 @@ export interface Resident {
   id: string;
   userId: string;
   username?: string;
+  fullName?: string;
   email?: string;
   mobileNumber?: string;
 
@@ -345,6 +362,15 @@ export interface ResidentService {
     residentType: ResidentType,
   ): Promise<Resident>;
 
+  submitOnboarding(input: ResidentOnboardingSubmitInput): Promise<ResidentOnboardingRequest>;
+  getMyOnboardingStatus(): Promise<ResidentOnboardingRequest>;
+  listOnboardingRequests(): Promise<ResidentOnboardingRequest[]>;
+  getOnboardingRequest(id: string | number): Promise<ResidentOnboardingRequest>;
+  allocateFlat(id: string | number, input: FlatAllocationInput): Promise<ResidentOnboardingRequest>;
+  requestChanges(id: string | number, notes: string): Promise<ResidentOnboardingRequest>;
+  rejectOnboarding(id: string | number, reason: string): Promise<ResidentOnboardingRequest>;
+  getFlatsAvailability(buildingId?: string | number): Promise<FlatAvailability[]>;
+
   listRegisteredVisitors(): Promise<RegisteredVisitor[]>;
 }
 // ============================================================
@@ -397,6 +423,15 @@ export interface NotificationService {
   list(role?: Role): Promise<Notification[]>;
   markRead(id: string): Promise<void>;
   markAllRead(): Promise<void>;
+
+  listDashboardAnnouncements(): Promise<Announcement[]>;
+  listPublicAnnouncements(): Promise<Announcement[]>;
+  listAdminAnnouncements(): Promise<Announcement[]>;
+  createAnnouncement(input: CreateAnnouncementInput): Promise<Announcement>;
+  updateAnnouncement(id: number, input: UpdateAnnouncementInput): Promise<Announcement>;
+  toggleActiveAnnouncement(id: number): Promise<Announcement>;
+  deleteAnnouncement(id: number): Promise<void>;
+  dismissAnnouncement(id: number): Promise<void>;
 }
 
 export interface AuditService {
@@ -489,6 +524,8 @@ export const authService: AuthService = {
       apiFetch<
         AuthResult | {
           verified: true;
+          verificationToken?: string;
+          identifier?: string;
         }
       >("/auth/verify-otp", {
         method: "POST",
@@ -506,9 +543,16 @@ export const authService: AuthService = {
       return res;
     }
 
-    return {
-      verified: true as const,
-    };
+    return res;
+  },
+
+  async sendOtp(input) {
+    await withReadableError(
+      apiFetch<void>("/auth/send-otp", {
+        method: "POST",
+        json: input,
+      }),
+    );
   },
 
   async resendOtp(input) {
@@ -946,6 +990,7 @@ export const visitorService: VisitorService = {
           mobileNumber: input.visitor.mobile,
           visitorType: input.visitorType,
           vehicleNumber: input.vehicleNumber,
+          photoUrl: input.photoUrl ?? input.visitor.photoUrl,
         },
       }),
     );
@@ -962,6 +1007,7 @@ export const visitorService: VisitorService = {
           expectedTime: toIsoTime(input.expectedTime),
           purpose: input.purpose,
           vehicleNumber: input.vehicleNumber,
+          photoUrl: input.photoUrl ?? input.visitor.photoUrl,
         },
       }),
     );
@@ -1060,6 +1106,56 @@ export const visitorService: VisitorService = {
       apiFetch<PublicStructureResponse>("/public/societies/structure"),
     );
   },
+
+  async uploadVisitorPhoto(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const resp = await withReadableError(
+      apiFetch<{ photoUrl: string }>("/visitors/photo", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+    return resp.photoUrl;
+  },
+
+  async uploadPublicVisitorPhoto(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const resp = await withReadableError(
+      apiFetch<{ photoUrl: string }>("/public/visitor-photo", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+    return resp.photoUrl;
+  },
+
+  async lookupByMobile(mobile: string): Promise<Visitor | null> {
+    const resp = await withReadableError(
+      apiFetch<any>(`/visitors/lookup?mobile=${encodeURIComponent(mobile)}`, {
+        method: "GET",
+      }),
+    );
+    if (!resp) return null;
+    return {
+      id: String(resp.id),
+      name: resp.fullName,
+      mobile: resp.mobileNumber,
+      role: "VISITOR",
+      visitorType: resp.visitorType,
+      photoUrl: resp.photoUrl,
+    };
+  },
+
+  async updateVisitorPhoto(visitorId: string | number, photoUrl: string): Promise<void> {
+    await withReadableError(
+      apiFetch(`/visitors/${visitorId}/photo`, {
+        method: "PATCH",
+        json: { photoUrl },
+      }),
+    );
+  },
 };
 
 export const visitorAuthorizationService: VisitorAuthorizationService = {
@@ -1108,6 +1204,7 @@ interface BackendVisitor {
   fullName: string;
   mobileNumber: string;
   visitorType: VisitRequest["visitorType"];
+  photoUrl?: string;
 }
 
 interface BackendVisitRequest {
@@ -1116,8 +1213,10 @@ interface BackendVisitRequest {
   visitorName: string;
   visitorMobile: string;
   visitorType: VisitRequest["visitorType"];
+  visitorPhotoUrl?: string;
   societyId: number | string;
   societyName: string;
+  buildingName?: string;
   flatId: number | string;
   flatNumber: string;
   residentId: number | string;
@@ -1129,7 +1228,9 @@ interface BackendVisitRequest {
   expectedTime?: string;
   purpose?: string;
   vehicleNumber?: string;
+  photoUrl?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 function mapRequestStatus(status: string): VisitRequest["requestStatus"] {
@@ -1143,6 +1244,7 @@ function mapVisitStatus(status: string): VisitRequest["visitStatus"] {
 }
 
 function mapVisitRequest(row: BackendVisitRequest): VisitRequest {
+  const photo = row.visitorPhotoUrl || row.photoUrl;
   return {
     id: String(row.id),
     visitor: {
@@ -1151,6 +1253,7 @@ function mapVisitRequest(row: BackendVisitRequest): VisitRequest {
       mobile: row.visitorMobile,
       role: "VISITOR",
       visitorType: row.visitorType,
+      photoUrl: photo,
     },
     resident: {
       id: String(row.residentId),
@@ -1171,6 +1274,7 @@ function mapVisitRequest(row: BackendVisitRequest): VisitRequest {
       floorId: "",
       residentIds: [String(row.residentId)],
     },
+    buildingName: row.buildingName,
     source: row.source,
     requestStatus: mapRequestStatus(row.requestStatus),
     visitStatus: mapVisitStatus(row.visitStatus),
@@ -1179,7 +1283,9 @@ function mapVisitRequest(row: BackendVisitRequest): VisitRequest {
     expectedTime: row.expectedTime ?? "",
     purpose: row.purpose,
     vehicleNumber: row.vehicleNumber,
+    photoUrl: photo,
     createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -1533,6 +1639,86 @@ export const residentService: ResidentService = {
     );
   },
 
+  async submitOnboarding(input: ResidentOnboardingSubmitInput) {
+    return await withReadableError(
+      apiFetch<ResidentOnboardingRequest>("/residents/onboarding", {
+        method: "POST",
+        json: {
+          societyId: input.societyId,
+          fullName: input.fullName,
+          residentType: input.residentType,
+          flatTypePreference: input.flatTypePreference || null,
+          familyMemberCount: input.familyMemberCount || 1,
+          preferredBuildingId: input.preferredBuildingId ? Number(input.preferredBuildingId) : null,
+          preferredFlatNumber: input.preferredFlatNumber || null,
+          emergencyContactName: input.emergencyContactName || null,
+          emergencyContactPhone: input.emergencyContactPhone || null,
+          vehicleNumber: input.vehicleNumber || null,
+        },
+      }),
+    );
+  },
+
+  async getMyOnboardingStatus() {
+    return await withReadableError(
+      apiFetch<ResidentOnboardingRequest>("/residents/onboarding/me"),
+    );
+  },
+
+  async listOnboardingRequests() {
+    return await withReadableError(
+      apiFetch<ResidentOnboardingRequest[]>("/residents/onboarding/admin/requests"),
+    );
+  },
+
+  async getOnboardingRequest(id: string | number) {
+    return await withReadableError(
+      apiFetch<ResidentOnboardingRequest>(`/residents/onboarding/admin/requests/${id}`),
+    );
+  },
+
+  async allocateFlat(id: string | number, input: FlatAllocationInput) {
+    return await withReadableError(
+      apiFetch<ResidentOnboardingRequest>(`/residents/onboarding/admin/requests/${id}/allocate`, {
+        method: "POST",
+        json: {
+          flatId: Number(input.flatId),
+          confirmedFlatType: input.confirmedFlatType || null,
+          maintenanceInfo: input.maintenanceInfo || null,
+          parkingStatus: input.parkingStatus || null,
+          notes: input.notes || null,
+        },
+      }),
+    );
+  },
+
+  async requestChanges(id: string | number, notes: string) {
+    return await withReadableError(
+      apiFetch<ResidentOnboardingRequest>(`/residents/onboarding/admin/requests/${id}/request-changes`, {
+        method: "POST",
+        json: { notes },
+      }),
+    );
+  },
+
+  async rejectOnboarding(id: string | number, reason: string) {
+    return await withReadableError(
+      apiFetch<ResidentOnboardingRequest>(`/residents/onboarding/admin/requests/${id}/reject`, {
+        method: "POST",
+        json: { notes: reason },
+      }),
+    );
+  },
+
+  async getFlatsAvailability(buildingId?: string | number) {
+    const url = buildingId
+      ? `/residents/flats/availability?buildingId=${encodeURIComponent(buildingId)}`
+      : "/residents/flats/availability";
+    return await withReadableError(
+      apiFetch<FlatAvailability[]>(url),
+    );
+  },
+
   async listRegisteredVisitors() {
     try {
       const auths = await withReadableError(
@@ -1611,12 +1797,20 @@ export const notificationService: NotificationService = {
     const rows = await withReadableError(
       apiFetch<Array<{
         id: number | string;
-        type: Notification["type"];
         title: string;
         message: string;
+        category?: "ANNOUNCEMENT" | "WORKFLOW";
+        type: string;
+        audience?: any;
+        eventDate?: string;
+        eventTime?: string;
+        purpose?: string;
+        imageUrl?: string;
         read: boolean;
-        visitRequestId?: number | string;
+        readAt?: string;
+        pinned?: boolean;
         createdAt: string;
+        visitRequestId?: number | string;
       }>>("/notifications"),
     );
     return rows.map((row) => ({
@@ -1627,6 +1821,13 @@ export const notificationService: NotificationService = {
       timestamp: row.createdAt,
       read: row.read,
       requestId: row.visitRequestId != null ? String(row.visitRequestId) : undefined,
+      category: row.category,
+      audience: row.audience,
+      eventDate: row.eventDate,
+      eventTime: row.eventTime,
+      purpose: row.purpose,
+      imageUrl: row.imageUrl,
+      pinned: row.pinned,
     }));
   },
 
@@ -1634,12 +1835,82 @@ export const notificationService: NotificationService = {
     await withReadableError(
       apiFetch<void>(`/notifications/${id}/read`, { method: "PATCH" }),
     );
+    realtimeEvents.publish("notification:read", { id });
   },
 
   async markAllRead() {
     await withReadableError(
       apiFetch<void>("/notifications/read-all", { method: "PATCH" }),
     );
+    realtimeEvents.publish("notification:all-read", {});
+  },
+
+  async listDashboardAnnouncements() {
+    return withReadableError(
+      apiFetch<Announcement[]>("/notifications/announcements"),
+    );
+  },
+
+  async listPublicAnnouncements() {
+    return withReadableError(
+      apiFetch<Announcement[]>("/notifications/public"),
+    );
+  },
+
+  async listAdminAnnouncements() {
+    return withReadableError(
+      apiFetch<Announcement[]>("/notifications/announcements/admin"),
+    );
+  },
+
+  async createAnnouncement(input) {
+    const res = await withReadableError(
+      apiFetch<Announcement>("/notifications/announcements", {
+        method: "POST",
+        json: input,
+      }),
+    );
+    realtimeEvents.publish("announcement:changed", res);
+    return res;
+  },
+
+  async updateAnnouncement(id, input) {
+    const res = await withReadableError(
+      apiFetch<Announcement>(`/notifications/announcements/${id}`, {
+        method: "PUT",
+        json: input,
+      }),
+    );
+    realtimeEvents.publish("announcement:changed", res);
+    return res;
+  },
+
+  async toggleActiveAnnouncement(id) {
+    const res = await withReadableError(
+      apiFetch<Announcement>(`/notifications/announcements/${id}/toggle-active`, {
+        method: "PATCH",
+      }),
+    );
+    realtimeEvents.publish("announcement:changed", res);
+    return res;
+  },
+
+  async deleteAnnouncement(id) {
+    await withReadableError(
+      apiFetch<void>(`/notifications/announcements/${id}`, {
+        method: "DELETE",
+      }),
+    );
+    realtimeEvents.publish("announcement:changed", { id, deleted: true });
+  },
+
+  async dismissAnnouncement(id) {
+    await withReadableError(
+      apiFetch<void>(`/notifications/announcements/${id}/dismiss`, {
+        method: "PATCH",
+      }),
+    );
+    realtimeEvents.publish("announcement:dismissed", { id });
   },
 };
 
@@ -1732,6 +2003,28 @@ export const publicService: PublicService = {
       societyName,
       primarySocietyName: societyName,
     };
+  },
+};
+
+export interface DashboardService {
+  getSocietyCommandCenter(params?: {
+    buildingId?: number;
+    timeRange?: string;
+  }): Promise<SocietyCommandCenterResponse>;
+}
+
+export const dashboardService: DashboardService = {
+  async getSocietyCommandCenter(params) {
+    const query = new URLSearchParams();
+    if (params?.buildingId) {
+      query.set("buildingId", String(params.buildingId));
+    }
+    if (params?.timeRange) {
+      query.set("timeRange", params.timeRange);
+    }
+    const queryString = query.toString();
+    const path = `/dashboard/command-center${queryString ? `?${queryString}` : ""}`;
+    return await withReadableError(apiFetch<SocietyCommandCenterResponse>(path));
   },
 };
 

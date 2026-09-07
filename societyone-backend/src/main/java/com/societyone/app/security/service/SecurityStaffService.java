@@ -27,17 +27,20 @@ public class SecurityStaffService {
     private final UserRepository userRepository;
     private final SocietyRepository societyRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.societyone.app.common.email.EmailService emailService;
 
     public SecurityStaffService(
             SecurityStaffProfileRepository staffRepository,
             UserRepository userRepository,
             SocietyRepository societyRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            com.societyone.app.common.email.EmailService emailService
     ) {
         this.staffRepository = staffRepository;
         this.userRepository = userRepository;
         this.societyRepository = societyRepository;
         this.passwordEncoder = passwordEncoder;
+        this.emailService = emailService;
     }
 
     public SecurityStaffResponse create(
@@ -84,6 +87,10 @@ public class SecurityStaffService {
         user.setRole(Role.SECURITY);
         user.setAccountStatus(AccountStatus.ACTIVE);
         User savedUser = userRepository.save(user);
+
+        if (savedUser.getEmail() != null && !savedUser.getEmail().isBlank()) {
+            emailService.sendWelcomeEmail(savedUser.getEmail(), savedUser.getFullName(), savedUser.getUsername(), "SECURITY_STAFF");
+        }
 
         SecurityStaffProfile profile = new SecurityStaffProfile();
         profile.setUser(savedUser);
