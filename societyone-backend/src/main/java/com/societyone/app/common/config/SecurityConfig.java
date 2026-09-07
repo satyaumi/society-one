@@ -122,7 +122,26 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/api/health", "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers(
+                                "/",
+                                "/index.html",
+                                "/assets/**",
+                                "/favicon.png",
+                                "/vite.svg",
+                                "/*.ico",
+                                "/*.png",
+                                "/*.js",
+                                "/*.css",
+                                "/login",
+                                "/signup",
+                                "/invite",
+                                "/auth",
+                                "/regular-visitors",
+                                "/privacy",
+                                "/terms",
+                                "/contact"
+                        ).permitAll()
+                        .requestMatchers("/api/health", "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/api/notifications/public").permitAll()
