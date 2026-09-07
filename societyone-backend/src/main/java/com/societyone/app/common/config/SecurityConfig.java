@@ -122,7 +122,7 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/health", "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/", "/api/health", "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/api/notifications/public").permitAll()
@@ -165,7 +165,9 @@ public class SecurityConfig {
                         "http://localhost:*",
                         "http://127.0.0.1:*",
                         "http://localhost",
-                        "http://127.0.0.1"
+                        "http://127.0.0.1",
+                        "https://*.vercel.app",
+                        "https://*.onrender.com"
                 )
         );
 
