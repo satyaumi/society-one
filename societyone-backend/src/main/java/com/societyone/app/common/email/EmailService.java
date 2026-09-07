@@ -1,5 +1,6 @@
 package com.societyone.app.common.email;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -14,10 +15,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -26,8 +34,10 @@ public class EmailService {
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
 
-    @Value("${societyone.mail.from:noreply@societyone.com}")
+    @Value("${societyone.mail.from:onboarding@resend.dev}")
     private String fromEmail;
 
     @Value("${societyone.mail.from-name:SocietyOne}")
@@ -42,8 +52,15 @@ public class EmailService {
     @Value("${spring.mail.username:}")
     private String mailUsername;
 
+    @Value("${societyone.mail.resend-api-key:${RESEND_API_KEY:}}")
+    private String resendApiKey;
+
     public EmailService(ObjectProvider<JavaMailSender> mailSenderProvider) {
         this.mailSenderProvider = mailSenderProvider;
+        this.objectMapper = new ObjectMapper();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(6))
+                .build();
     }
 
     /**
@@ -62,23 +79,20 @@ public class EmailService {
 
         String subject = switch (purpose.toUpperCase()) {
             case "PASSWORD_RESET" -> "SocietyOne - Password Reset Code";
-            case "SIGNUP" -> "SocietyOne - Verify Your Email Address";
+            case "SIGNUP", "SIGNUP_EMAIL" -> "SocietyOne - Verify Your Email Address";
             case "EMAIL_CHANGE" -> "SocietyOne - Confirm Your New Email";
             default -> "SocietyOne - Verification Code";
         };
 
         String purposeDescription = switch (purpose.toUpperCase()) {
             case "PASSWORD_RESET" -> "reset the password for your SocietyOne account";
-            case "SIGNUP" -> "complete your SocietyOne account registration";
+            case "SIGNUP", "SIGNUP_EMAIL" -> "complete your SocietyOne account registration";
             case "EMAIL_CHANGE" -> "verify your new email address on SocietyOne";
             default -> "complete your verification on SocietyOne";
         };
 
         String htmlContent = buildOtpHtml(otp, purposeDescription, validMinutes);
         String textContent = buildOtpText(otp, purposeDescription, validMinutes);
-
-        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        boolean hasCredentials = mailUsername != null && !mailUsername.isBlank();
 
         if (!mailEnabled) {
             log.warn("[EmailService] Email sending is disabled (mailEnabled=false). [DEV OTP] To: {} | OTP: {}", toEmail, otp);
@@ -88,9 +102,22 @@ public class EmailService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Email delivery is disabled on this server.");
         }
 
+        // 1. Try Resend HTTPS REST API first if configured
+        if (resendApiKey != null && !resendApiKey.isBlank()) {
+            boolean sent = sendViaResend(toEmail, subject, textContent, htmlContent);
+            if (sent) {
+                log.info("[EmailService] OTP email successfully dispatched to {} via Resend API for purpose {}", toEmail, purpose);
+                return;
+            }
+            log.warn("[EmailService] Resend API transmission failed. Attempting SMTP fallback...");
+        }
+
+        // 2. Try SMTP fallback
+        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+        boolean hasCredentials = mailUsername != null && !mailUsername.isBlank();
+
         if (mailSender == null || !hasCredentials) {
-            log.warn("[EmailService] Real SMTP transmission skipped: SMTP credentials are not configured! " +
-                     "Please set SPRING_MAIL_USERNAME and SPRING_MAIL_PASSWORD in societyone-backend/.env to send real emails. " +
+            log.warn("[EmailService] Real email transmission skipped: Neither Resend API key nor SMTP credentials are configured! " +
                      "[DEV OTP FALLBACK] To: {} | Subject: '{}' | OTP: {} (valid for {} mins)",
                     toEmail, subject, otp, validMinutes);
             if (devFallbackEnabled) {
@@ -98,7 +125,7 @@ public class EmailService {
             }
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
-                    "Email service is not configured with SMTP credentials. Please configure your Gmail address and Google App Password in societyone-backend/.env to send real emails."
+                    "Email service is not configured. Please set RESEND_API_KEY in environment variables to send real emails."
             );
         }
 
@@ -116,7 +143,7 @@ public class EmailService {
             helper.setText(textContent, htmlContent);
 
             mailSender.send(message);
-            log.info("[EmailService] OTP email successfully dispatched to {} for purpose {}", toEmail, purpose);
+            log.info("[EmailService] OTP email successfully dispatched to {} via SMTP for purpose {}", toEmail, purpose);
 
         } catch (MessagingException | UnsupportedEncodingException e) {
             log.error("[EmailService] Failed to create MIME message for {}: {}", toEmail, e.getMessage(), e);
@@ -131,10 +158,9 @@ public class EmailService {
             log.warn("""
                     ========================================================================================
                     [EmailService - DEV OTP FALLBACK]
-                    Real SMTP delivery failed (e.g. Google rejected credentials or SMTP network error).
+                    Real SMTP delivery failed.
                     Recipient: {}
                     OTP Code:  {} (valid for {} minutes)
-                    Enter this 6-digit OTP code in the verification screen to proceed!
                     ========================================================================================
                     """, toEmail, otp, validMinutes);
 
@@ -142,83 +168,54 @@ public class EmailService {
                 log.info("[EmailService] devFallbackEnabled=true: Allowing OTP verification flow to proceed.");
                 return;
             }
-
-            if (msg.contains("AuthenticationFailedException") || msg.contains("535") || msg.contains("Username and Password not accepted")) {
-                log.error("[EmailService] SMTP authentication failed for {}: Google rejected the credentials. " +
-                          "Ensure you are using a 16-character Google App Password (not your normal Gmail password), " +
-                          "and that 2-Step Verification is enabled on your Google account.", toEmail);
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_GATEWAY,
-                        "SMTP authentication failed. If using Gmail, ensure 2-Step Verification is active and use a 16-character Google App Password."
-                );
-            }
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unable to send verification email via SMTP: " + e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unable to send verification email: " + e.getMessage());
         }
     }
 
-    private String buildOtpHtml(String otp, String purposeDescription, long validMinutes) {
-        return """
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>SocietyOne Verification Code</title>
-              <style>
-                body { margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-                .container { max-width: 560px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
-                .header { background-color: #0f172a; padding: 28px 32px; text-align: center; }
-                .brand { color: #ffffff; font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
-                .content { padding: 36px 32px; color: #334155; line-height: 1.6; }
-                .greeting { font-size: 18px; font-weight: 600; color: #0f172a; margin-bottom: 12px; }
-                .otp-box { margin: 28px 0; padding: 20px; background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 10px; text-align: center; }
-                .otp-code { font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 700; color: #2563eb; letter-spacing: 8px; margin: 0; }
-                .expiry { font-size: 13px; color: #64748b; margin-top: 8px; }
-                .notice { font-size: 13px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px; margin-top: 28px; }
-                .footer { background-color: #f8fafc; padding: 20px 32px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <div class="header">
-                  <div class="brand">SocietyOne</div>
-                </div>
-                <div class="content">
-                  <div class="greeting">Verification Code</div>
-                  <p>You requested a one-time verification code to %s.</p>
-                  <div class="otp-box">
-                    <div class="otp-code">%s</div>
-                    <div class="expiry">This code will expire in %d minutes.</div>
-                  </div>
-                  <p>Enter this 6-digit code in SocietyOne to proceed. Never share this code with anyone.</p>
-                  <div class="notice">
-                    If you did not request this verification code, you can safely ignore this email. No changes will be made to your account.
-                  </div>
-                </div>
-                <div class="footer">
-                  &copy; SocietyOne Residential Management. All rights reserved.
-                </div>
-              </div>
-            </body>
-            </html>
-            """.formatted(purposeDescription, otp, validMinutes);
-    }
+    /**
+     * Send email via Resend HTTPS REST API.
+     */
+    private boolean sendViaResend(String toEmail, String subject, String textContent, String htmlContent) {
+        if (resendApiKey == null || resendApiKey.isBlank()) {
+            return false;
+        }
 
-    private String buildOtpText(String otp, String purposeDescription, long validMinutes) {
-        return """
-            SocietyOne Verification Code
-            ============================
+        try {
+            String sender = fromName != null && !fromName.isBlank()
+                    ? "%s <%s>".formatted(fromName, fromEmail)
+                    : fromEmail;
 
-            You requested a one-time verification code to %s.
+            Map<String, Object> payload = Map.of(
+                    "from", sender,
+                    "to", List.of(toEmail.trim()),
+                    "subject", subject,
+                    "html", htmlContent,
+                    "text", textContent
+            );
 
-            Your 6-digit code is: %s
+            String jsonBody = objectMapper.writeValueAsString(payload);
 
-            This code expires in %d minutes.
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.resend.com/emails"))
+                    .header("Authorization", "Bearer " + resendApiKey.trim())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                    .timeout(Duration.ofSeconds(10))
+                    .build();
 
-            If you did not request this code, please ignore this email.
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
-            -- SocietyOne Team
-            """.formatted(purposeDescription, otp, validMinutes);
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                log.info("[EmailService] Resend API successfully sent email to {}. Response: {}", toEmail, response.body());
+                return true;
+            } else {
+                log.error("[EmailService] Resend API error for {} (HTTP {}): {}", toEmail, response.statusCode(), response.body());
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("[EmailService] Exception dispatching email via Resend API to {}: {}", toEmail, e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -301,12 +298,8 @@ public class EmailService {
             return;
         }
 
-        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        boolean hasCredentials = mailUsername != null && !mailUsername.isBlank();
-
-        if (!mailEnabled || mailSender == null || !hasCredentials) {
-            log.info("[EmailService] Activity email skipped (mailEnabled={}, hasCredentials={}). [DEV LOG] To: {} | Activity: {} | Subject: '{}'",
-                    mailEnabled, hasCredentials, toEmail, activityType, subject);
+        if (!mailEnabled) {
+            log.info("[EmailService] Activity email skipped (mailEnabled=false).");
             return;
         }
 
@@ -325,21 +318,34 @@ public class EmailService {
                         username, formattedTime, securityNotice
                 );
 
-                MimeMessage message = mailSender.createMimeMessage();
-                MimeMessageHelper helper = new MimeMessageHelper(
-                        message,
-                        MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
-                        StandardCharsets.UTF_8.name()
-                );
+                // Try Resend first
+                if (resendApiKey != null && !resendApiKey.isBlank()) {
+                    boolean sent = sendViaResend(toEmail, subject, text, html);
+                    if (sent) {
+                        log.info("[EmailService] {} activity email successfully dispatched to {} via Resend API", activityType, toEmail);
+                        return;
+                    }
+                }
 
-                helper.setFrom(fromEmail, fromName);
-                helper.setTo(toEmail.trim());
-                helper.setSubject(subject);
-                helper.setText(text, html);
+                // Fallback to SMTP
+                JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+                boolean hasCredentials = mailUsername != null && !mailUsername.isBlank();
+                if (mailSender != null && hasCredentials) {
+                    MimeMessage message = mailSender.createMimeMessage();
+                    MimeMessageHelper helper = new MimeMessageHelper(
+                            message,
+                            MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
+                            StandardCharsets.UTF_8.name()
+                    );
 
-                mailSender.send(message);
-                log.info("[EmailService] {} activity email successfully dispatched to {}", activityType, toEmail);
+                    helper.setFrom(fromEmail, fromName);
+                    helper.setTo(toEmail.trim());
+                    helper.setSubject(subject);
+                    helper.setText(text, html);
 
+                    mailSender.send(message);
+                    log.info("[EmailService] {} activity email successfully dispatched to {} via SMTP", activityType, toEmail);
+                }
             } catch (Exception e) {
                 log.warn("[EmailService] Failed to send {} activity email to {}: {}", activityType, toEmail, e.getMessage());
             }
@@ -355,6 +361,71 @@ public class EmailService {
             case "VISITOR" -> "Visitor";
             default -> role.trim();
         };
+    }
+
+    private String buildOtpHtml(String otp, String purposeDescription, long validMinutes) {
+        return """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>SocietyOne Verification Code</title>
+              <style>
+                body { margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+                .container { max-width: 560px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+                .header { background-color: #0f172a; padding: 28px 32px; text-align: center; }
+                .brand { color: #ffffff; font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+                .content { padding: 36px 32px; color: #334155; line-height: 1.6; }
+                .greeting { font-size: 18px; font-weight: 600; color: #0f172a; margin-bottom: 12px; }
+                .otp-box { margin: 28px 0; padding: 20px; background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 10px; text-align: center; }
+                .otp-code { font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 700; color: #2563eb; letter-spacing: 8px; margin: 0; }
+                .expiry { font-size: 13px; color: #64748b; margin-top: 8px; }
+                .notice { font-size: 13px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px; margin-top: 28px; }
+                .footer { background-color: #f8fafc; padding: 20px 32px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <div class="brand">SocietyOne</div>
+                </div>
+                <div class="content">
+                  <div class="greeting">Verification Code</div>
+                  <p>You requested a one-time verification code to %s.</p>
+                  <div class="otp-box">
+                    <div class="otp-code">%s</div>
+                    <div class="expiry">This code will expire in %d minutes.</div>
+                  </div>
+                  <p>Enter this 6-digit code in SocietyOne to proceed. Never share this code with anyone.</p>
+                  <div class="notice">
+                    If you did not request this verification code, you can safely ignore this email. No changes will be made to your account.
+                  </div>
+                </div>
+                <div class="footer">
+                  &copy; SocietyOne Residential Management. All rights reserved.
+                </div>
+              </div>
+            </body>
+            </html>
+            """.formatted(purposeDescription, otp, validMinutes);
+    }
+
+    private String buildOtpText(String otp, String purposeDescription, long validMinutes) {
+        return """
+            SocietyOne Verification Code
+            ============================
+
+            You requested a one-time verification code to %s.
+
+            Your 6-digit code is: %s
+
+            This code expires in %d minutes.
+
+            If you did not request this code, please ignore this email.
+
+            -- SocietyOne Team
+            """.formatted(purposeDescription, otp, validMinutes);
     }
 
     private String buildActivityHtml(

@@ -78,7 +78,8 @@ societyone:
       secret: ${JWT_SECRET:KrHYbZiErgOZGL3TStmT/lSpso1dWffBoH94bZw615s=}
       expiration-ms: ${JWT_EXPIRATION_MS:86400000}
   mail:
-    from: ${MAIL_FROM:noreply@societyone.com}
+    from: ${MAIL_FROM:onboarding@resend.dev}
     from-name: ${MAIL_FROM_NAME:SocietyOne}
     enabled: ${MAIL_ENABLED:true}
     dev-fallback-enabled: ${MAIL_DEV_FALLBACK_ENABLED:true}
+    resend-api-key: ${RESEND_API_KEY:}
