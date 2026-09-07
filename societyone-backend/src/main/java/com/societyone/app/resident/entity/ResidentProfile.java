@@ -44,6 +44,30 @@ public class ResidentProfile {
     @Column(name = "status", nullable = false, length = 20)
     private ResidentStatus status = ResidentStatus.ACTIVE;
 
+    @Column(name = "flat_type", length = 30)
+    private String flatType;
+
+    @Column(name = "maintenance_info", length = 255)
+    private String maintenanceInfo;
+
+    @Column(name = "parking_slot", length = 100)
+    private String parkingSlot;
+
+    @Column(name = "family_member_count")
+    private Integer familyMemberCount = 1;
+
+    @Column(name = "emergency_contact_name", length = 150)
+    private String emergencyContactName;
+
+    @Column(name = "emergency_contact_phone", length = 30)
+    private String emergencyContactPhone;
+
+    @Column(name = "vehicle_number", length = 50)
+    private String vehicleNumber;
+
+    @Column(name = "allocated_at")
+    private OffsetDateTime allocatedAt;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -55,6 +79,9 @@ public class ResidentProfile {
         OffsetDateTime now = OffsetDateTime.now();
         createdAt = now;
         updatedAt = now;
+        if (allocatedAt == null) {
+            allocatedAt = now;
+        }
     }
 
     @PreUpdate
@@ -96,6 +123,70 @@ public class ResidentProfile {
 
     public void setStatus(ResidentStatus status) {
         this.status = status;
+    }
+
+    public String getFlatType() {
+        return flatType;
+    }
+
+    public void setFlatType(String flatType) {
+        this.flatType = flatType;
+    }
+
+    public String getMaintenanceInfo() {
+        return maintenanceInfo;
+    }
+
+    public void setMaintenanceInfo(String maintenanceInfo) {
+        this.maintenanceInfo = maintenanceInfo;
+    }
+
+    public String getParkingSlot() {
+        return parkingSlot;
+    }
+
+    public void setParkingSlot(String parkingSlot) {
+        this.parkingSlot = parkingSlot;
+    }
+
+    public Integer getFamilyMemberCount() {
+        return familyMemberCount;
+    }
+
+    public void setFamilyMemberCount(Integer familyMemberCount) {
+        this.familyMemberCount = familyMemberCount;
+    }
+
+    public String getEmergencyContactName() {
+        return emergencyContactName;
+    }
+
+    public void setEmergencyContactName(String emergencyContactName) {
+        this.emergencyContactName = emergencyContactName;
+    }
+
+    public String getEmergencyContactPhone() {
+        return emergencyContactPhone;
+    }
+
+    public void setEmergencyContactPhone(String emergencyContactPhone) {
+        this.emergencyContactPhone = emergencyContactPhone;
+    }
+
+    public String getVehicleNumber() {
+        return vehicleNumber;
+    }
+
+    public void setVehicleNumber(String vehicleNumber) {
+        this.vehicleNumber = vehicleNumber;
+    }
+
+    public OffsetDateTime getAllocatedAt() {
+        return allocatedAt;
+    }
+
+    public void setAllocatedAt(OffsetDateTime allocatedAt) {
+        this.allocatedAt = allocatedAt;
     }
 
     public OffsetDateTime getCreatedAt() {

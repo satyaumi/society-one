@@ -9,6 +9,7 @@ public record ResidentResponse(
         Long id,
         Long userId,
         String username,
+        String fullName,
         String email,
         String mobileNumber,
         Long flatId,
@@ -21,6 +22,54 @@ public record ResidentResponse(
         String societyName,
         ResidentType residentType,
         ResidentStatus status,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        String flatType,
+        String maintenanceInfo,
+        String parkingSlot,
+        Integer familyMemberCount,
+        OffsetDateTime allocatedAt
 ) {
+    public ResidentResponse(
+            Long id,
+            Long userId,
+            String username,
+            String email,
+            String mobileNumber,
+            Long flatId,
+            String flatNumber,
+            Long floorId,
+            Integer floorNumber,
+            Long buildingId,
+            String buildingName,
+            Long societyId,
+            String societyName,
+            ResidentType residentType,
+            ResidentStatus status,
+            OffsetDateTime createdAt
+    ) {
+        this(
+                id,
+                userId,
+                username,
+                username,
+                email,
+                mobileNumber,
+                flatId,
+                flatNumber,
+                floorId,
+                floorNumber,
+                buildingId,
+                buildingName,
+                societyId,
+                societyName,
+                residentType,
+                status,
+                createdAt,
+                null,
+                null,
+                null,
+                1,
+                createdAt
+        );
+    }
 }

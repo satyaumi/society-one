@@ -1,0 +1,40 @@
+package com.societyone.app.resident.dto;
+
+import com.societyone.app.resident.entity.OnboardingStatus;
+import com.societyone.app.resident.entity.ResidentType;
+import java.time.OffsetDateTime;
+
+public record ResidentOnboardingResponse(
+        Long id,
+        Long userId,
+        String username,
+        String userFullName,
+        String userEmail,
+        String userMobile,
+        Long societyId,
+        String societyName,
+        String fullName,
+        ResidentType residentType,
+        String flatTypePreference,
+        Integer familyMemberCount,
+        Long preferredBuildingId,
+        String preferredBuildingName,
+        String preferredFlatNumber,
+        String emergencyContactName,
+        String emergencyContactPhone,
+        String vehicleNumber,
+        OnboardingStatus status,
+        String adminNotes,
+        Long allocatedFlatId,
+        String allocatedFlatNumber,
+        Long allocatedFloorId,
+        Integer allocatedFloorNumber,
+        Long allocatedBuildingId,
+        String allocatedBuildingName,
+        String confirmedFlatType,
+        String maintenanceInfo,
+        String parkingStatus,
+        OffsetDateTime allocatedAt,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt
+) {}

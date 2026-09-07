@@ -23,5 +23,9 @@ public interface ResidentProfileRepository
 
     List<ResidentProfile> findByFlat_SocietyIdOrderByCreatedAtDesc(Long societyId);
 
+    boolean existsByFlatIdAndStatus(Long flatId, ResidentStatus status);
+
+    Optional<ResidentProfile> findFirstByFlatIdAndStatus(Long flatId, ResidentStatus status);
+
     Long countByFlat_SocietyId(Long societyId);
 }

@@ -5,11 +5,7 @@ import com.societyone.app.audit.service.AuditService;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.common.api.ApiResponse;
 import com.societyone.app.common.security.CurrentUser;
-import com.societyone.app.resident.dto.ResidentCreateRequest;
-import com.societyone.app.resident.dto.ResidentProvisionRequest;
-import com.societyone.app.resident.dto.ResidentResponse;
-import com.societyone.app.resident.dto.ResidentSelfLinkRequest;
-import com.societyone.app.resident.dto.UnassignedResidentResponse;
+import com.societyone.app.resident.dto.*;
 import com.societyone.app.resident.entity.ResidentStatus;
 import com.societyone.app.resident.service.ResidentService;
 import jakarta.validation.Valid;
@@ -150,5 +146,83 @@ public class ResidentController {
         return ApiResponse.success(
                 response
         );
+    }
+
+    // =========================================================================
+    // Resident Onboarding & Apartment Allocation Endpoints
+    // =========================================================================
+
+    @PostMapping("/onboarding")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<ResidentOnboardingResponse> submitOnboarding(
+            Authentication authentication,
+            @Valid @RequestBody ResidentOnboardingSubmitRequest request
+    ) {
+        User actor = CurrentUser.require(authentication);
+        return ApiResponse.success(residentService.submitOnboarding(actor, request));
+    }
+
+    @GetMapping("/onboarding/me")
+    public ApiResponse<ResidentOnboardingResponse> getMyOnboardingStatus(
+            Authentication authentication
+    ) {
+        User actor = CurrentUser.require(authentication);
+        return ApiResponse.success(residentService.getMyOnboardingStatus(actor));
+    }
+
+    @GetMapping({"/onboarding", "/onboarding/admin/requests"})
+    public ApiResponse<List<ResidentOnboardingResponse>> listOnboardingRequests(
+            Authentication authentication
+    ) {
+        User actor = CurrentUser.require(authentication);
+        return ApiResponse.success(residentService.listOnboardingRequests(actor));
+    }
+
+    @GetMapping({"/onboarding/{id:\\d+}", "/onboarding/admin/requests/{id:\\d+}"})
+    public ApiResponse<ResidentOnboardingResponse> getOnboardingRequest(
+            Authentication authentication,
+            @PathVariable Long id
+    ) {
+        User actor = CurrentUser.require(authentication);
+        return ApiResponse.success(residentService.getOnboardingRequest(actor, id));
+    }
+
+    @PostMapping({"/onboarding/{id:\\d+}/allocate", "/onboarding/admin/requests/{id:\\d+}/allocate"})
+    public ApiResponse<ResidentOnboardingResponse> allocateFlat(
+            Authentication authentication,
+            @PathVariable Long id,
+            @Valid @RequestBody FlatAllocationRequest request
+    ) {
+        User actor = CurrentUser.require(authentication);
+        return ApiResponse.success(residentService.allocateFlat(actor, id, request));
+    }
+
+    @PostMapping({"/onboarding/{id:\\d+}/request-changes", "/onboarding/admin/requests/{id:\\d+}/request-changes"})
+    public ApiResponse<ResidentOnboardingResponse> requestChanges(
+            Authentication authentication,
+            @PathVariable Long id,
+            @Valid @RequestBody AdminChangeRequest request
+    ) {
+        User actor = CurrentUser.require(authentication);
+        return ApiResponse.success(residentService.requestChanges(actor, id, request));
+    }
+
+    @PostMapping({"/onboarding/{id:\\d+}/reject", "/onboarding/admin/requests/{id:\\d+}/reject"})
+    public ApiResponse<ResidentOnboardingResponse> rejectOnboarding(
+            Authentication authentication,
+            @PathVariable Long id,
+            @Valid @RequestBody AdminChangeRequest request
+    ) {
+        User actor = CurrentUser.require(authentication);
+        return ApiResponse.success(residentService.rejectOnboarding(actor, id, request));
+    }
+
+    @GetMapping("/flats/availability")
+    public ApiResponse<List<FlatAvailabilityResponse>> getFlatsAvailability(
+            Authentication authentication,
+            @RequestParam(required = false) Long buildingId
+    ) {
+        User actor = CurrentUser.require(authentication);
+        return ApiResponse.success(residentService.getFlatsWithAvailability(actor, buildingId));
     }
 }
