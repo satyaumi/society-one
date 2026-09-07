@@ -28,6 +28,8 @@ build/
 **/.idea/
 .vscode/
 **/.vscode/
+.trae/
+**/.trae/
 *.iml
 *.iws
 *.ipr
@@ -35,6 +37,9 @@ build/
 *.swo
 .DS_Store
 Thumbs.db
+*.tsbuildinfo
+.vite/
+**/.vite/
 
 # Runtime & Scratch directories
 scratch/

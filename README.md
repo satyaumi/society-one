@@ -34,6 +34,9 @@ SocietyOne is a modern, full-stack residential security and visitor operating sy
 - **Hierarchical Society Structure**: Manage Societies, Buildings/Towers, Floors, and Flats.
 - **Staff Provisioning**: Provision and audit security officer credentials.
 - **Immutable Audit Trail**: SHA-validated, timestamped audit records for every request, approval, gate admission, and checkout.
+- **Society Command Center**: Comprehensive real-time society overview, occupancy metrics, pending approvals, visitor trends, and quick administration actions.
+- **Resident Onboarding & Unit Allocation**: Complete digital resident onboarding, verification review, flat assignment, and apartment allocation workflow.
+- **Broadcast Announcements**: Community announcements with audience targeting, priority flags, expiry, and visual banner delivery.
 
 ---
 
@@ -42,8 +45,8 @@ SocietyOne is a modern, full-stack residential security and visitor operating sy
 ```
 Appartmentproject/
 ├── societyone-backend/       # Spring Boot 3.4+ (Java 21) REST API
-│   ├── src/main/java/        # Clean MVC Architecture (Auth, Society, Visitor, Security, Audit, Common)
-│   ├── src/main/resources/   # Flyway SQL migrations (V1 - V11) & application.yaml
+│   ├── src/main/java/        # Clean MVC Architecture (Auth, Society, Visitor, Security, Audit, Resident, Notification)
+│   ├── src/main/resources/   # Flyway SQL migrations (V1 - V15) & application.yaml
 │   ├── pom.xml               # Maven configuration
 │   └── .env.example          # Backend environment variable template
 ├── societyone-frontend/      # React 19 + TypeScript + Vite SPA
@@ -52,6 +55,8 @@ Appartmentproject/
 │   ├── src/services/         # Strongly-typed HTTP API clients
 │   ├── package.json          # Frontend npm dependencies
 │   └── .env.example          # Frontend environment variable template
+├── docs/
+│   └── DEPLOYMENT.md         # Production deployment guide
 ├── .env.example              # Root environment variable documentation
 └── README.md                 # System documentation
 ```
@@ -86,7 +91,7 @@ Appartmentproject/
    ```sql
    CREATE DATABASE societyone;
    ```
-2. Migrations are executed automatically by Flyway upon backend startup (`V1` through `V11`).
+2. Migrations are executed automatically by Flyway upon backend startup (`V1` through `V15`).
 
 ---
 
