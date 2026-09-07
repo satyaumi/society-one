@@ -1,39 +1,36 @@
 # ==============================================================================
 # Build Stage (Repository Root Context)
 # ==============================================================================
-FROM maven:3.9.9-eclipse-temurin-21-alpine AS builder
+FROM maven:3.9.9-eclipse-temurin-21 AS builder
 
 WORKDIR /workspace
 
-# Copy Maven descriptor and source code from societyone-backend
+ENV MAVEN_OPTS="-Xmx768m -XX:+TieredCompilation -XX:TieredStopAtLevel=1"
+
 COPY societyone-backend/pom.xml ./
 COPY societyone-backend/src ./src
 
-# Build production jar
 RUN mvn clean package -DskipTests -B
 
 # ==============================================================================
 # Production Runtime Stage
 # ==============================================================================
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 
 LABEL maintainer="SocietyOne Engineering <supportsocietyone@gmail.com>"
 LABEL service="societyone-backend"
 
 WORKDIR /app
 
-# Create non-root system user and secure uploads directory
-RUN addgroup -g 10001 -S appgroup && \
-    adduser -u 10001 -S appuser -G appgroup && \
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -s /bin/sh -m appuser && \
     mkdir -p /app/uploads && \
     chown -R appuser:appgroup /app
 
-# Copy compiled jar from build stage
 COPY --from=builder --chown=appuser:appgroup /workspace/target/societyone-backend-*.jar /app/app.jar
 
-USER appuser:appgroup
+USER appuser
 
-# Render dynamic PORT fallback to 8081
 ENV PORT=8081
 EXPOSE 8081
 
