@@ -10,9 +10,9 @@ spring:
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:${DATABASE_URL:jdbc:postgresql://localhost:5432/societyone}}
-    username: ${SPRING_DATASOURCE_USERNAME:${DATABASE_USERNAME:${PGUSER:postgres}}}
-    password: ${SPRING_DATASOURCE_PASSWORD:${DATABASE_PASSWORD:${PGPASSWORD:postgres}}}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/societyone}
+    username: ${SPRING_DATASOURCE_USERNAME:${PGUSER:postgres}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${PGPASSWORD:postgres}}
     hikari:
       maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:25}
       minimum-idle: ${HIKARI_MIN_IDLE:5}

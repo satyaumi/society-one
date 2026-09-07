@@ -16,6 +16,7 @@ public class SocietyoneBackendApplication {
 
 	public static void main(String[] args) {
 		loadDotEnvIfPresent();
+		com.societyone.app.common.config.DatabaseUrlNormalizer.normalizeAndSetSystemProperties();
 		SpringApplication.run(SocietyoneBackendApplication.class, args);
 	}
 
