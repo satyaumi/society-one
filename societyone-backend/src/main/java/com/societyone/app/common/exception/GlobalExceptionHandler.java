@@ -293,9 +293,12 @@ public class GlobalExceptionHandler {
             Exception exception
     ) {
         log.error("Unhandled exception caught by GlobalExceptionHandler: {}", exception.getMessage(), exception);
+        String msg = exception.getMessage() != null
+                ? exception.getClass().getSimpleName() + ": " + exception.getMessage()
+                : "An unexpected error occurred (" + exception.getClass().getSimpleName() + ")";
         ApiResponse<Void> response = ApiResponse.failure(
                 "INTERNAL_SERVER_ERROR",
-                "An unexpected error occurred"
+                msg
         );
 
         return ResponseEntity
