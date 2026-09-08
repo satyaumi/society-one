@@ -33,6 +33,7 @@ import {
   AnnouncementDetailsModal,
   getAnnouncementImage,
 } from "@/components/notifications/AnnouncementDetailsModal";
+import { ShareModal } from "@/components/share/ShareModal";
 import { authStore } from "@/lib/auth/auth-store";
 import { WorkflowDemo } from "@/components/landing/WorkflowDemo";
 
@@ -204,6 +205,12 @@ function HomePage() {
 
           {/* Header Action Buttons */}
           <div className="hidden items-center gap-2 sm:flex">
+            <ShareModal
+              triggerVariant="outline"
+              triggerSize="sm"
+              triggerClassName="border-border/80 hover:border-brand-blue/40"
+            />
+
             <Button
               asChild
               variant="ghost"
@@ -281,6 +288,10 @@ function HomePage() {
             </div>
 
             <div className="pt-2 border-t border-border flex flex-col gap-2">
+              <ShareModal
+                triggerVariant="outline"
+                triggerClassName="w-full justify-center"
+              />
               <Button asChild className="w-full bg-brand-blue text-white hover:bg-brand-blue/90 justify-center">
                 <Link to="/online-visit" onClick={() => setMobileMenuOpen(false)}>
                   <Globe className="mr-2 size-4" />
@@ -520,6 +531,12 @@ function HomePage() {
                   <ArrowRight className="ml-2 size-4 transition-transform duration-200 group-hover:translate-x-1" />
                 </Link>
               </Button>
+
+              <ShareModal
+                triggerVariant="secondary"
+                triggerSize="lg"
+                triggerClassName="h-12 rounded-xl px-5 border border-border/70 hover:border-brand-blue/40"
+              />
             </div>
 
             <div className="mt-9 flex flex-wrap gap-x-6 gap-y-2.5 text-xs text-muted-foreground sm:text-sm">
@@ -812,6 +829,19 @@ function HomePage() {
         <span>© 2026 SocietyOne. All rights reserved.</span>
 
         <span className="flex items-center gap-6">
+          <ShareModal
+            triggerVariant="ghost"
+            triggerSize="sm"
+            triggerClassName="text-xs text-muted-foreground hover:text-foreground h-auto p-0 hover:bg-transparent"
+          >
+            <button
+              type="button"
+              className="text-xs text-muted-foreground transition-colors duration-200 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            >
+              Share App
+            </button>
+          </ShareModal>
+
           <Link
             to="/privacy"
             className="rounded-md transition-colors duration-200 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-brand-blue"

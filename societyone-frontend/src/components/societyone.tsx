@@ -23,6 +23,7 @@ import societyOneLogo from "@/assets/societyone-logo.png";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { ShareModal } from "@/components/share/ShareModal";
 import { cn } from "@/lib/utils";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { useAuth } from "@/lib/auth/auth-store";
@@ -235,11 +236,18 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
               </h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <ShareModal
+              triggerVariant="ghost"
+              triggerSize="icon"
+              triggerClassName="text-muted-foreground hover:text-foreground hover:bg-accent/60"
+              title="Share SocietyOne"
+              description="Share SocietyOne with residents, gate security, visitors, or friends."
+            />
             <Button
               variant="ghost"
               size="icon"
-              className="relative"
+              className="relative text-muted-foreground hover:text-foreground hover:bg-accent/60"
               aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
               onClick={() => setNotificationsOpen((value) => !value)}
             >

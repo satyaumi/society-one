@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import societyOneLogo from "@/assets/societyone-logo.png";
+import { ShareModal } from "@/components/share/ShareModal";
 import { visitorService } from "@/services";
 import type {
   EligibleRecipient,
@@ -398,6 +399,12 @@ function OnlineVisitPage() {
                 Register Another Visit
               </Button>
 
+              <ShareModal
+                triggerVariant="outline"
+                triggerSize="default"
+                shareText="I just registered an advance online visit on SocietyOne! You can pre-schedule your visit or check out SocietyOne here:"
+              />
+
               <Button asChild variant="outline">
                 <Link to="/">
                   <Home className="mr-1.5 size-4" />
@@ -424,6 +431,11 @@ function OnlineVisitPage() {
           </Link>
 
           <div className="flex items-center gap-2">
+            <ShareModal
+              triggerVariant="outline"
+              triggerSize="sm"
+              shareText="Schedule an advance online visit on SocietyOne without standing in gate queues:"
+            />
             <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex text-muted-foreground hover:text-foreground">
               <Link to="/invite">
                 Instant Visit (At Gate)
