@@ -10,6 +10,9 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
 import java.io.IOException;
 import java.nio.file.Paths;
 
+import org.springframework.http.CacheControl;
+import java.util.concurrent.TimeUnit;
+
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
@@ -20,9 +23,15 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations(uploadPath.endsWith("/") ? uploadPath : uploadPath + "/");
 
-        // Static Frontend SPA Routing Fallback
+        // Immutable Fingerprinted Assets (CSS, JS, Images in /assets/**)
+        registry.addResourceHandler("/assets/**")
+                .addResourceLocations("classpath:/static/assets/")
+                .setCacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic());
+
+        // Static Frontend SPA Routing Fallback (index.html with no-cache so browsers always get new releases)
         registry.addResourceHandler("/**")
                 .addResourceLocations("classpath:/static/")
+                .setCacheControl(CacheControl.noCache().mustRevalidate())
                 .resourceChain(true)
                 .addResolver(new PathResourceResolver() {
                     @Override
