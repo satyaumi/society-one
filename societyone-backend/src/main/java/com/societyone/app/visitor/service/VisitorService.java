@@ -136,6 +136,11 @@ public class VisitorService {
         requireAuthenticated(actor);
 
         return switch (actor.getRole()) {
+            case PLATFORM_ADMIN -> visitorRepository
+                    .findAll()
+                    .stream()
+                    .map(this::toVisitorResponse)
+                    .toList();
             case ADMIN -> {
                 Society society = getAdminSociety(actor);
                 yield visitorRepository
@@ -338,6 +343,12 @@ public class VisitorService {
         requireAuthenticated(actor);
 
         return switch (actor.getRole()) {
+            case PLATFORM_ADMIN -> visitRequestRepository
+                    .findAll()
+                    .stream()
+                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                    .map(this::toVisitRequestResponse)
+                    .toList();
             case ADMIN -> {
                 Society society = getAdminSociety(actor);
                 yield visitRequestRepository
@@ -825,6 +836,10 @@ public class VisitorService {
     ) {
         requireAuthenticated(actor);
 
+        if (actor.getRole() == Role.PLATFORM_ADMIN) {
+            return;
+        }
+
         if (actor.getRole() == Role.ADMIN) {
 
             Society adminSociety =
@@ -880,6 +895,10 @@ public class VisitorService {
             User actor,
             Visitor visitor
     ) {
+        if (actor.getRole() == Role.PLATFORM_ADMIN) {
+            return;
+        }
+
         if (actor.getRole() == Role.ADMIN) {
             Society adminSociety = getAdminSociety(actor);
             boolean hasAccess = visitRequestRepository
