@@ -90,6 +90,7 @@ const navByRole: Record<Role, { label: string; to: AppPath; icon: ReactNode }[]>
   PLATFORM_ADMIN: [
     { label: "Platform Overview", to: "/platform", icon: <Home /> },
     { label: "Society Requests", to: "/platform", icon: <Building2 /> },
+    { label: "Announcements", to: "/admin/announcements", icon: <Megaphone /> },
     { label: "Audit Stream", to: "/history", icon: <FileClock /> },
   ],
 };

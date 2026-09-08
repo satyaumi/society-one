@@ -34,6 +34,18 @@ public class AuditLog {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    public AuditLog() {
+    }
+
+    public AuditLog(Long actorUserId, Long societyId, AuditAction action, String entityType, Long entityId, String description) {
+        this.actorUserId = actorUserId;
+        this.societyId = societyId;
+        this.action = action;
+        this.entityType = entityType;
+        this.entityId = entityId;
+        this.description = description;
+    }
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

@@ -2229,6 +2229,26 @@ export interface PlatformService {
   getKpis(): Promise<PlatformKPIs>;
   getSocieties(): Promise<PlatformSocietyDirectoryItem[]>;
   getAudit(limit?: number): Promise<AuditEvent[]>;
+  sendMessageToAdmin(payload: {
+    societyId: number;
+    subject: string;
+    message: string;
+    category?: string;
+    sendEmail?: boolean;
+  }): Promise<void>;
+  dispatchCredentials(
+    societyId: number,
+    payload?: { newPassword?: string; notes?: string },
+  ): Promise<{
+    societyId: number;
+    societyName: string;
+    adminUserId: number;
+    adminFullName: string;
+    adminUsername: string;
+    adminEmail: string;
+    emailSent: boolean;
+    message: string;
+  }>;
 }
 
 export const platformService: PlatformService = {
@@ -2247,6 +2267,33 @@ export const platformService: PlatformService = {
   async getAudit(limit = 50) {
     return await withReadableError(
       apiFetch<AuditEvent[]>(`/platform/audit?limit=${limit}`),
+    );
+  },
+
+  async sendMessageToAdmin(payload) {
+    await withReadableError(
+      apiFetch<void>("/platform/messages/send-to-admin", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    );
+  },
+
+  async dispatchCredentials(societyId, payload) {
+    return await withReadableError(
+      apiFetch<{
+        societyId: number;
+        societyName: string;
+        adminUserId: number;
+        adminFullName: string;
+        adminUsername: string;
+        adminEmail: string;
+        emailSent: boolean;
+        message: string;
+      }>(`/platform/societies/${societyId}/dispatch-credentials`, {
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+      }),
     );
   },
 };

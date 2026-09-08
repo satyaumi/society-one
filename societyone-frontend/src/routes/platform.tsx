@@ -79,7 +79,51 @@ function PlatformManagementPage() {
   }>({ type: null, request: null });
 
   const [notesInput, setNotesInput] = useState("");
+  const [adminPasswordInput, setAdminPasswordInput] = useState("");
+  const [modalError, setModalError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Direct Message Modal
+  const [messageModal, setMessageModal] = useState<{
+    open: boolean;
+    society: PlatformSocietyDirectoryItem | null;
+    subject: string;
+    message: string;
+    category: string;
+    sendEmail: boolean;
+  }>({
+    open: false,
+    society: null,
+    subject: "",
+    message: "",
+    category: "GENERAL_MESSAGE",
+    sendEmail: true,
+  });
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [messageModalError, setMessageModalError] = useState<string | null>(null);
+
+  // Admin Credentials Modal
+  const [credentialsModal, setCredentialsModal] = useState<{
+    open: boolean;
+    society: PlatformSocietyDirectoryItem | null;
+    newPassword: string;
+    notes: string;
+    result: {
+      adminUsername: string;
+      adminEmail: string;
+      adminFullName: string;
+      emailSent: boolean;
+      message: string;
+    } | null;
+  }>({
+    open: false,
+    society: null,
+    newPassword: "",
+    notes: "",
+    result: null,
+  });
+  const [credentialsLoading, setCredentialsLoading] = useState(false);
+  const [credentialsModalError, setCredentialsModalError] = useState<string | null>(null);
 
   // Society Handover Modal
   const [handoverModal, setHandoverModal] = useState<{
@@ -89,6 +133,7 @@ function PlatformManagementPage() {
   const [newAdminUserId, setNewAdminUserId] = useState<string>("");
   const [handoverReason, setHandoverReason] = useState<string>("");
   const [handoverLoading, setHandoverLoading] = useState(false);
+  const [handoverModalError, setHandoverModalError] = useState<string | null>(null);
 
   // Society Search
   const [societySearch, setSocietySearch] = useState<string>("");
@@ -180,6 +225,7 @@ function PlatformManagementPage() {
   async function handleReviewAction() {
     if (!actionModal.request || !actionModal.type) return;
     setActionLoading(true);
+    setModalError(null);
     setError(null);
     setSuccess(null);
 
@@ -192,7 +238,7 @@ function PlatformManagementPage() {
         setSuccess(`Application ${updated.referenceCode || reqId} is now Under Review.`);
       } else if (actionModal.type === "CHANGES") {
         if (!notesInput.trim()) {
-          setError("Please provide clear notes explaining the requested changes.");
+          setModalError("Please provide clear notes explaining the requested changes.");
           setActionLoading(false);
           return;
         }
@@ -201,7 +247,7 @@ function PlatformManagementPage() {
         setSuccess(`Requested changes for ${updated.referenceCode || reqId}. Applicant has been notified.`);
       } else if (actionModal.type === "REJECT") {
         if (!notesInput.trim()) {
-          setError("Please state a clear reason for rejecting this application.");
+          setModalError("Please state a clear reason for rejecting this application.");
           setActionLoading(false);
           return;
         }
@@ -211,22 +257,86 @@ function PlatformManagementPage() {
       } else if (actionModal.type === "APPROVE") {
         const updated = await societyRequestService.approveAndCreate(reqId, {
           notes: notesInput.trim() || undefined,
+          adminPassword: adminPasswordInput.trim() || undefined,
         });
         setRequests((prev) => prev.map((r) => (r.id === reqId ? updated : r)));
         setSuccess(`Successfully approved! Society "${updated.societyName}" created and applicant handed over administrative access.`);
-        // Reload societies directory and KPIs
         void loadData(true);
       }
 
       setActionModal({ type: null, request: null });
       setNotesInput("");
+      setAdminPasswordInput("");
+      setModalError(null);
       if (selectedRequest && selectedRequest.id === reqId) {
         setSelectedRequest(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to execute action.");
+      const errMsg = err instanceof Error ? err.message : "Failed to execute action.";
+      setModalError(errMsg);
+      setError(errMsg);
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  // Send Direct Message to Society Admin
+  async function handleSendDirectMessage() {
+    if (!messageModal.society || !messageModal.subject.trim() || !messageModal.message.trim()) {
+      setMessageModalError("Please provide both a subject and a message body.");
+      return;
+    }
+
+    setMessageLoading(true);
+    setMessageModalError(null);
+    try {
+      await platformService.sendMessageToAdmin({
+        societyId: messageModal.society.id,
+        subject: messageModal.subject.trim(),
+        message: messageModal.message.trim(),
+        category: messageModal.category,
+        sendEmail: messageModal.sendEmail,
+      });
+
+      setSuccess(`Direct administrative notice sent to ${messageModal.society.name} Admin.`);
+      setMessageModal({
+        open: false,
+        society: null,
+        subject: "",
+        message: "",
+        category: "GENERAL_MESSAGE",
+        sendEmail: true,
+      });
+      void loadData(true);
+    } catch (err) {
+      setMessageModalError(err instanceof Error ? err.message : "Failed to send message to Society Admin.");
+    } finally {
+      setMessageLoading(false);
+    }
+  }
+
+  // Dispatch / Manage Admin Credentials
+  async function handleDispatchCredentials() {
+    if (!credentialsModal.society) return;
+
+    setCredentialsLoading(true);
+    setCredentialsModalError(null);
+    try {
+      const result = await platformService.dispatchCredentials(credentialsModal.society.id, {
+        newPassword: credentialsModal.newPassword.trim() || undefined,
+        notes: credentialsModal.notes.trim() || undefined,
+      });
+
+      setCredentialsModal((prev) => ({
+        ...prev,
+        result,
+      }));
+      setSuccess(`Admin login credentials dispatched for ${credentialsModal.society.name}.`);
+      void loadData(true);
+    } catch (err) {
+      setCredentialsModalError(err instanceof Error ? err.message : "Failed to dispatch admin credentials.");
+    } finally {
+      setCredentialsLoading(false);
     }
   }
 
@@ -234,13 +344,14 @@ function PlatformManagementPage() {
   async function handleAdminHandover() {
     if (!handoverModal.society || !newAdminUserId) return;
     setHandoverLoading(true);
+    setHandoverModalError(null);
     setError(null);
     setSuccess(null);
 
     const socId = handoverModal.society.id;
     const targetUserId = Number(newAdminUserId);
     if (isNaN(targetUserId) || targetUserId <= 0) {
-      setError("Please enter a valid numeric User ID.");
+      setHandoverModalError("Please enter a valid numeric User ID.");
       setHandoverLoading(false);
       return;
     }
@@ -254,9 +365,12 @@ function PlatformManagementPage() {
       setHandoverModal({ open: false, society: null });
       setNewAdminUserId("");
       setHandoverReason("");
+      setHandoverModalError(null);
       void loadData(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to handover admin access.");
+      const msg = err instanceof Error ? err.message : "Failed to handover admin access.";
+      setHandoverModalError(msg);
+      setError(msg);
     } finally {
       setHandoverLoading(false);
     }
@@ -683,18 +797,61 @@ function PlatformManagementPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
+                    <div className="mt-4 pt-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
                       <span className="text-[11px] text-muted-foreground">
                         Added {soc.createdAt ? new Date(soc.createdAt).toLocaleDateString() : "Recently"}
                       </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setHandoverModal({ open: true, society: soc })}
-                        className="gap-1 text-xs"
-                      >
-                        <KeyRound className="size-3" /> Reassign Admin
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setMessageModal({
+                              open: true,
+                              society: soc,
+                              subject: "",
+                              message: "",
+                              category: "GENERAL_MESSAGE",
+                              sendEmail: true,
+                            });
+                            setMessageModalError(null);
+                          }}
+                          className="gap-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/50"
+                          title="Send administrative message or alert to this Society Admin"
+                        >
+                          <Send className="size-3" /> Message Admin
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setCredentialsModal({
+                              open: true,
+                              society: soc,
+                              newPassword: "",
+                              notes: "",
+                              result: null,
+                            });
+                            setCredentialsModalError(null);
+                          }}
+                          className="gap-1 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
+                          title="View and dispatch admin dashboard login credentials"
+                        >
+                          <ShieldCheck className="size-3" /> Credentials
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setHandoverModal({ open: true, society: soc });
+                            setHandoverModalError(null);
+                          }}
+                          className="gap-1 text-xs"
+                          title="Reassign admin access to a different user ID"
+                        >
+                          <KeyRound className="size-3" /> Reassign
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -887,12 +1044,22 @@ function PlatformManagementPage() {
                   {actionModal.type === "APPROVE" && "Approve & Create Society"}
                 </h3>
                 <button
-                  onClick={() => setActionModal({ type: null, request: null })}
+                  onClick={() => {
+                    setActionModal({ type: null, request: null });
+                    setModalError(null);
+                  }}
                   className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   <X className="size-4" />
                 </button>
               </div>
+
+              {modalError && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                  <div className="font-medium flex-1">{modalError}</div>
+                </div>
+              )}
 
               <div className="text-xs text-muted-foreground">
                 Target Society: <strong>{actionModal.request.societyName}</strong> ({actionModal.request.referenceCode || actionModal.request.id})
@@ -904,9 +1071,23 @@ function PlatformManagementPage() {
                     <p className="font-semibold">Automatic Provisioning Workflow:</p>
                     <ul className="mt-1 list-disc list-inside space-y-1 text-emerald-700 dark:text-emerald-300">
                       <li>Creates active Society record with {actionModal.request.totalFlats} flats and structure.</li>
-                      <li>Sets up applicant ({actionModal.request.primaryContactEmail}) as Society Admin.</li>
-                      <li>Dispatches confirmation and handover email to the applicant.</li>
+                      <li>Promotes applicant ({actionModal.request.primaryContactEmail}) to Society Admin role.</li>
+                      <li>Dispatches confirmation and login credentials handover email.</li>
                     </ul>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Initial Admin Password (Optional)</Label>
+                    <Input
+                      type="text"
+                      placeholder="Leave blank to auto-generate a secure temporary password"
+                      value={adminPasswordInput}
+                      onChange={(e) => setAdminPasswordInput(e.target.value)}
+                      className="mt-1 text-xs font-mono"
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      If specified, minimum 6 characters. The applicant will use this password to log in.
+                    </p>
                   </div>
 
                   <div>
@@ -944,7 +1125,10 @@ function PlatformManagementPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setActionModal({ type: null, request: null })}
+                  onClick={() => {
+                    setActionModal({ type: null, request: null });
+                    setModalError(null);
+                  }}
                   disabled={actionLoading}
                 >
                   Cancel
@@ -976,6 +1160,245 @@ function PlatformManagementPage() {
           </div>
         )}
 
+        {/* Message Society Admin Modal */}
+        {messageModal.open && messageModal.society && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h3 className="text-lg font-bold font-display flex items-center gap-2">
+                  <Send className="size-5 text-primary" /> Send Message to Society Admin
+                </h3>
+                <button
+                  onClick={() => setMessageModal((prev) => ({ ...prev, open: false }))}
+                  className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              {messageModalError && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                  <div className="font-medium flex-1">{messageModalError}</div>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-border bg-muted/20 p-3 text-xs space-y-1">
+                <div>Recipient Society: <strong>{messageModal.society.name}</strong> (SOC-#{messageModal.society.id})</div>
+                <div>Society Admin: <strong>{messageModal.society.adminFullName || "Unassigned"}</strong> {messageModal.society.adminEmail && `(${messageModal.society.adminEmail})`}</div>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <Label className="text-xs">Notification Category *</Label>
+                  <select
+                    value={messageModal.category}
+                    onChange={(e) => setMessageModal((prev) => ({ ...prev, category: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="GENERAL_MESSAGE">General Advisory / Official Notice</option>
+                    <option value="PAYMENT_UPDATE">Billing / Subscription / Payment Update</option>
+                    <option value="SECURITY_ALERT">Security Alert / Incident Briefing</option>
+                    <option value="PLATFORM_UPDATE">Platform Update / Compliance Notice</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label className="text-xs">Subject Line *</Label>
+                  <Input
+                    placeholder="e.g. Society Account Verification / Annual Compliance Update"
+                    value={messageModal.subject}
+                    onChange={(e) => setMessageModal((prev) => ({ ...prev, subject: e.target.value }))}
+                    className="mt-1 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs">Message Content *</Label>
+                  <textarea
+                    rows={4}
+                    placeholder="Write your direct communication or instructions to the society management..."
+                    value={messageModal.message}
+                    onChange={(e) => setMessageModal((prev) => ({ ...prev, message: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={messageModal.sendEmail}
+                    onChange={(e) => setMessageModal((prev) => ({ ...prev, sendEmail: e.target.checked }))}
+                    className="rounded border-border size-4 accent-primary"
+                  />
+                  <span className="text-xs font-medium">Also send high-priority email notification to Admin's registered email</span>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMessageModal((prev) => ({ ...prev, open: false }))}
+                  disabled={messageLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => void handleSendDirectMessage()}
+                  disabled={messageLoading}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
+                >
+                  {messageLoading ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin mr-1" /> Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="size-3.5" /> Dispatch Notice
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Admin Credentials & Access Modal */}
+        {credentialsModal.open && credentialsModal.society && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h3 className="text-lg font-bold font-display flex items-center gap-2">
+                  <ShieldCheck className="size-5 text-emerald-600" /> Society Admin Access & Credentials
+                </h3>
+                <button
+                  onClick={() => setCredentialsModal((prev) => ({ ...prev, open: false }))}
+                  className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              {credentialsModalError && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                  <div className="font-medium flex-1">{credentialsModalError}</div>
+                </div>
+              )}
+
+              {credentialsModal.result ? (
+                <div className="space-y-4 text-xs">
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-800 dark:text-emerald-200 space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <CheckCircle2 className="size-5 text-emerald-600" /> Credentials Successfully Dispatched!
+                    </div>
+                    <p className="text-xs">{credentialsModal.result.message}</p>
+                    <div className="rounded-lg bg-background/80 p-3 font-mono space-y-1 text-foreground border border-emerald-500/20">
+                      <div><strong>Admin:</strong> {credentialsModal.result.adminFullName}</div>
+                      <div><strong>Login Email:</strong> {credentialsModal.result.adminEmail}</div>
+                      <div><strong>Username:</strong> {credentialsModal.result.adminUsername}</div>
+                      <div><strong>Email Dispatched:</strong> {credentialsModal.result.emailSent ? "Yes (Official handover template sent)" : "No (SMTP not configured)"}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={() => setCredentialsModal((prev) => ({ ...prev, open: false }))}
+                    >
+                      Done
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 text-xs">
+                  <div className="rounded-xl border border-border bg-muted/20 p-3.5 space-y-2">
+                    <div className="font-semibold text-foreground flex items-center justify-between">
+                      <span>{credentialsModal.society.name}</span>
+                      <span className="font-mono text-xs text-muted-foreground">SOC-#{credentialsModal.society.id}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                      <div>
+                        <span className="block font-medium text-foreground">Designated Admin</span>
+                        {credentialsModal.society.adminFullName || "Unassigned"}
+                      </div>
+                      <div>
+                        <span className="block font-medium text-foreground">Admin Email</span>
+                        {credentialsModal.society.adminEmail || "N/A"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="text-xs font-semibold">Set / Reset Password (Optional)</Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const rand = "SocAdmin#" + Math.floor(100000 + Math.random() * 900000);
+                          setCredentialsModal((prev) => ({ ...prev, newPassword: rand }));
+                        }}
+                        className="text-[11px] text-primary hover:underline font-medium"
+                      >
+                        Generate Random
+                      </button>
+                    </div>
+                    <Input
+                      type="text"
+                      placeholder="Leave blank to generate automatically"
+                      value={credentialsModal.newPassword}
+                      onChange={(e) => setCredentialsModal((prev) => ({ ...prev, newPassword: e.target.value }))}
+                      className="font-mono text-xs"
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Setting this will update the Society Admin password and email them their direct login credentials.
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Administrative Notes (Optional)</Label>
+                    <Input
+                      placeholder="e.g. Account credentials renewed on request"
+                      value={credentialsModal.notes}
+                      onChange={(e) => setCredentialsModal((prev) => ({ ...prev, notes: e.target.value }))}
+                      className="mt-1 text-xs"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCredentialsModal((prev) => ({ ...prev, open: false }))}
+                      disabled={credentialsLoading}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => void handleDispatchCredentials()}
+                      disabled={credentialsLoading || !credentialsModal.society.adminEmail}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                    >
+                      {credentialsLoading ? (
+                        <>
+                          <Loader2 className="size-3.5 animate-spin mr-1" /> Dispatching...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="size-3.5" /> Dispatch Login Credentials
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Admin Handover Modal */}
         {handoverModal.open && handoverModal.society && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -989,6 +1412,13 @@ function PlatformManagementPage() {
                   <X className="size-4" />
                 </button>
               </div>
+
+              {handoverModalError && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                  <div className="font-medium flex-1">{handoverModalError}</div>
+                </div>
+              )}
 
               <div className="text-xs text-muted-foreground space-y-1">
                 <div>Society: <strong>{handoverModal.society.name}</strong> (SOC-#{handoverModal.society.id})</div>

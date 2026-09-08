@@ -504,6 +504,9 @@ public class SocietyCreationRequestService {
             if (user.getRole() != Role.ADMIN && user.getRole() != Role.PLATFORM_ADMIN) {
                 user.setRole(Role.ADMIN);
             }
+            if (customPassword != null && customPassword.trim().length() >= 6) {
+                user.setPasswordHash(passwordEncoder.encode(customPassword.trim()));
+            }
             user.setAccountStatus(AccountStatus.ACTIVE);
             return userRepository.save(user);
         }
@@ -515,8 +518,8 @@ public class SocietyCreationRequestService {
         newUser.setMobileNumber(phone);
         newUser.setUsername(generateUniqueUsername(req.getPrimaryContactName(), email));
 
-        String rawPassword = (customPassword != null && customPassword.length() >= 8)
-                ? customPassword
+        String rawPassword = (customPassword != null && customPassword.trim().length() >= 6)
+                ? customPassword.trim()
                 : "Admin@" + (1000 + RANDOM.nextInt(9000));
         newUser.setPasswordHash(passwordEncoder.encode(rawPassword));
         newUser.setRole(Role.ADMIN);

@@ -4,10 +4,7 @@ import com.societyone.app.audit.dto.AuditLogResponse;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.common.api.ApiResponse;
 import com.societyone.app.common.security.CurrentUser;
-import com.societyone.app.platform.dto.AdminHandoverRequest;
-import com.societyone.app.platform.dto.PlatformKpiResponse;
-import com.societyone.app.platform.dto.PlatformSocietyDirectoryItem;
-import com.societyone.app.platform.dto.SocietyRequestReviewAction;
+import com.societyone.app.platform.dto.*;
 import com.societyone.app.platform.service.PlatformManagementService;
 import com.societyone.app.society.dto.SocietyCreationRequestResponse;
 import com.societyone.app.society.service.SocietyCreationRequestService;
@@ -114,6 +111,27 @@ public class PlatformManagementController {
         User actor = CurrentUser.require(authentication);
         requestService.reassignSocietyAdmin(actor, societyId, request);
         return ApiResponse.success(null, "Society administrator reassigned successfully");
+    }
+
+    @PostMapping("/messages/send-to-admin")
+    public ApiResponse<Void> sendMessageToAdmin(
+            Authentication authentication,
+            @Valid @RequestBody PlatformDirectMessageRequest request
+    ) {
+        User actor = CurrentUser.require(authentication);
+        platformService.sendDirectMessageToAdmin(actor, request);
+        return ApiResponse.success(null, "Official message dispatched to society administrator");
+    }
+
+    @PostMapping("/societies/{societyId}/dispatch-credentials")
+    public ApiResponse<AdminCredentialsDispatchResponse> dispatchCredentials(
+            Authentication authentication,
+            @PathVariable Long societyId,
+            @RequestBody(required = false) DispatchCredentialsRequest request
+    ) {
+        User actor = CurrentUser.require(authentication);
+        AdminCredentialsDispatchResponse response = platformService.dispatchAdminCredentials(actor, societyId, request);
+        return ApiResponse.success(response, response.message());
     }
 
     @GetMapping("/audit")

@@ -29,7 +29,8 @@ public record CreateAnnouncementRequest(
         String imageUrl,
         OffsetDateTime expiresAt,
         Boolean active,
-        Boolean pinned
+        Boolean pinned,
+        Long societyId
 ) {
     public CreateAnnouncementRequest(
             String title,
@@ -43,7 +44,7 @@ public record CreateAnnouncementRequest(
             Boolean active,
             Boolean pinned
     ) {
-        this(title, message, type, audience, eventDate, eventTime, purpose, null, expiresAt, active, pinned);
+        this(title, message, type, audience, eventDate, eventTime, purpose, null, expiresAt, active, pinned, null);
     }
 
     public boolean isActiveDefault() {

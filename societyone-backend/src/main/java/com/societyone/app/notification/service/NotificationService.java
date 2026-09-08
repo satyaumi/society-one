@@ -105,6 +105,7 @@ public class NotificationService {
         a.setType(request.type());
         a.setAudience(request.audience());
         a.setCreatedByUserId(admin.getId());
+        a.setSocietyId(request.societyId());
         a.setEventDate(request.eventDate());
         a.setEventTime(request.eventTime() != null ? request.eventTime().trim() : null);
         a.setPurpose(request.purpose() != null ? request.purpose().trim() : null);
@@ -508,7 +509,7 @@ public class NotificationService {
     }
 
     private void ensureAudienceAccess(User user, AnnouncementAudience audience) {
-        if (user.getRole() == Role.ADMIN) {
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.PLATFORM_ADMIN) {
             return;
         }
         Set<AnnouncementAudience> allowed = getAudiencesForRole(user.getRole());
@@ -531,7 +532,7 @@ public class NotificationService {
 
     private static void requireAdmin(User user) {
         requireAuthenticated(user);
-        if (user.getRole() != Role.ADMIN) {
+        if (user.getRole() != Role.ADMIN && user.getRole() != Role.PLATFORM_ADMIN) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Only administrators can perform this action"
