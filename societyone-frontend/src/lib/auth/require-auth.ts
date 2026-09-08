@@ -10,12 +10,12 @@ export async function requireAuth() {
   }
 }
 
-/** Guard routes that require specific roles. Redirects to /dashboard if role mismatch. */
+/** Guard routes that require specific roles. Redirects to /unauthorized if role mismatch. */
 export async function requireRole(allowedRoles: Role[]) {
   await requireAuth();
   const user = await authService.getCurrentUser();
   if (!user || !allowedRoles.includes(user.role)) {
-    throw redirect({ to: "/dashboard" });
+    throw redirect({ to: "/unauthorized" });
   }
 }
 

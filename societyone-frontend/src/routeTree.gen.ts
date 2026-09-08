@@ -27,6 +27,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SetupAdminRouteImport } from './routes/setup-admin'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as UnauthorizedRouteImport } from './routes/unauthorized'
 import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAnnouncementsRouteImport } from './routes/admin/announcements'
@@ -128,6 +129,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UnauthorizedRoute = UnauthorizedRouteImport.update({
+  id: '/unauthorized',
+  path: '/unauthorized',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
   path: '/verify-otp',
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/setup-admin': typeof SetupAdminRoute
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
+  '/unauthorized': typeof UnauthorizedRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/residents': typeof AdminResidentsRoute
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/setup-admin': typeof SetupAdminRoute
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
+  '/unauthorized': typeof UnauthorizedRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/residents': typeof AdminResidentsRoute
@@ -258,6 +266,7 @@ export interface FileRoutesById {
   '/setup-admin': typeof SetupAdminRoute
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
+  '/unauthorized': typeof UnauthorizedRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/residents': typeof AdminResidentsRoute
@@ -290,6 +299,7 @@ export interface FileRouteTypes {
     | '/setup-admin'
     | '/signup'
     | '/terms'
+    | '/unauthorized'
     | '/verify-otp'
     | '/admin/announcements'
     | '/admin/residents'
@@ -319,6 +329,7 @@ export interface FileRouteTypes {
     | '/setup-admin'
     | '/signup'
     | '/terms'
+    | '/unauthorized'
     | '/verify-otp'
     | '/admin/announcements'
     | '/admin/residents'
@@ -349,6 +360,7 @@ export interface FileRouteTypes {
     | '/setup-admin'
     | '/signup'
     | '/terms'
+    | '/unauthorized'
     | '/verify-otp'
     | '/admin/announcements'
     | '/admin/residents'
@@ -380,6 +392,7 @@ export interface RootRouteChildren {
   SetupAdminRoute: typeof SetupAdminRoute
   SignupRoute: typeof SignupRoute
   TermsRoute: typeof TermsRoute
+  UnauthorizedRoute: typeof UnauthorizedRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
   SecurityAtSecurityRoute: typeof SecurityAtSecurityRoute
   SecurityOnlineRoute: typeof SecurityOnlineRoute
@@ -514,6 +527,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/unauthorized': {
+      id: '/unauthorized'
+      path: '/unauthorized'
+      fullPath: '/unauthorized'
+      preLoaderRoute: typeof UnauthorizedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/verify-otp': {
       id: '/verify-otp'
       path: '/verify-otp'
@@ -626,6 +646,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetupAdminRoute: SetupAdminRoute,
   SignupRoute: SignupRoute,
   TermsRoute: TermsRoute,
+  UnauthorizedRoute: UnauthorizedRoute,
   VerifyOtpRoute: VerifyOtpRoute,
   SecurityAtSecurityRoute: SecurityAtSecurityRoute,
   SecurityOnlineRoute: SecurityOnlineRoute,

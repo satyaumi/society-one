@@ -122,25 +122,11 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/",
-                                "/index.html",
-                                "/assets/**",
-                                "/favicon.png",
-                                "/vite.svg",
-                                "/*.ico",
-                                "/*.png",
-                                "/*.js",
-                                "/*.css",
-                                "/login",
-                                "/signup",
-                                "/invite",
-                                "/auth",
-                                "/regular-visitors",
-                                "/privacy",
-                                "/terms",
-                                "/contact"
-                        ).permitAll()
+                        // Permit all frontend SPA routes, HTML navigations, and static assets
+                        .requestMatchers(request -> {
+                            String path = request.getServletPath();
+                            return !path.startsWith("/api/") && !path.startsWith("/actuator/");
+                        }).permitAll()
                         .requestMatchers("/api/health", "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
@@ -163,6 +149,7 @@ public class SecurityConfig {
                                 "/api/floors/**",
                                 "/api/flats/**"
                         ).hasRole("ADMIN")
+                        .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 )
 
