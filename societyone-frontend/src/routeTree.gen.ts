@@ -19,6 +19,7 @@ import { Route as HistoryRouteImport } from './routes/history'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as OnlineVisitRouteImport } from './routes/online-visit'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RegularVisitorsRouteImport } from './routes/regular-visitors'
 import { Route as RequestsRouteImport } from './routes/requests'
@@ -87,6 +88,11 @@ const LoginRoute = LoginRouteImport.update({
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnlineVisitRoute = OnlineVisitRouteImport.update({
+  id: '/online-visit',
+  path: '/online-visit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -196,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/online-visit': typeof OnlineVisitRoute
   '/privacy': typeof PrivacyRoute
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
@@ -226,6 +233,7 @@ export interface FileRoutesByTo {
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/online-visit': typeof OnlineVisitRoute
   '/privacy': typeof PrivacyRoute
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
@@ -258,6 +266,7 @@ export interface FileRoutesById {
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/online-visit': typeof OnlineVisitRoute
   '/privacy': typeof PrivacyRoute
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
@@ -291,6 +300,7 @@ export interface FileRouteTypes {
     | '/invite'
     | '/login'
     | '/notifications'
+    | '/online-visit'
     | '/privacy'
     | '/regular-visitors'
     | '/requests'
@@ -321,6 +331,7 @@ export interface FileRouteTypes {
     | '/invite'
     | '/login'
     | '/notifications'
+    | '/online-visit'
     | '/privacy'
     | '/regular-visitors'
     | '/requests'
@@ -352,6 +363,7 @@ export interface FileRouteTypes {
     | '/invite'
     | '/login'
     | '/notifications'
+    | '/online-visit'
     | '/privacy'
     | '/regular-visitors'
     | '/requests'
@@ -384,6 +396,7 @@ export interface RootRouteChildren {
   InviteRoute: typeof InviteRoute
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
+  OnlineVisitRoute: typeof OnlineVisitRoute
   PrivacyRoute: typeof PrivacyRoute
   RegularVisitorsRoute: typeof RegularVisitorsRoute
   RequestsRoute: typeof RequestsRoute
@@ -469,6 +482,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/online-visit': {
+      id: '/online-visit'
+      path: '/online-visit'
+      fullPath: '/online-visit'
+      preLoaderRoute: typeof OnlineVisitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -638,6 +658,7 @@ const rootRouteChildren: RootRouteChildren = {
   InviteRoute: InviteRoute,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
+  OnlineVisitRoute: OnlineVisitRoute,
   PrivacyRoute: PrivacyRoute,
   RegularVisitorsRoute: RegularVisitorsRoute,
   RequestsRoute: RequestsRoute,

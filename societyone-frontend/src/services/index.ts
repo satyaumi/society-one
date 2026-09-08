@@ -25,6 +25,9 @@ import type {
   ResidentOnboardingSubmitInput,
   FlatAllocationInput,
   FlatAvailability,
+  EligibleRecipient,
+  OnlineVisitInput,
+  PublicSociety,
 } from "@/types/domain";
 import type { SocietyCommandCenterResponse } from "@/types/command-center";
 
@@ -185,6 +188,10 @@ export interface VisitorService {
   createPublicVisitRequest(input: PublicVisitRequestInput): Promise<VisitRequest>;
   getPublicVisitRequestStatus(id: string | number): Promise<VisitRequest>;
   getPublicStructure(): Promise<PublicStructureResponse>;
+  listPublicSocieties(): Promise<PublicSociety[]>;
+  listEligibleRecipients(societyId: number | string): Promise<EligibleRecipient[]>;
+  createOnlineVisit(input: OnlineVisitInput): Promise<VisitRequest>;
+  getOnlineVisitStatus(id: string | number): Promise<VisitRequest>;
   uploadVisitorPhoto(file: File): Promise<string>;
   uploadPublicVisitorPhoto(file: File): Promise<string>;
   lookupByMobile(mobile: string): Promise<Visitor | null>;
@@ -1111,6 +1118,35 @@ export const visitorService: VisitorService = {
     );
   },
 
+  async listPublicSocieties() {
+    return await withReadableError(
+      apiFetch<PublicSociety[]>("/public/societies"),
+    );
+  },
+
+  async listEligibleRecipients(societyId) {
+    return await withReadableError(
+      apiFetch<EligibleRecipient[]>(`/public/societies/${societyId}/eligible-recipients`),
+    );
+  },
+
+  async createOnlineVisit(input) {
+    const row = await withReadableError(
+      apiFetch<BackendVisitRequest>("/public/online-visits", {
+        method: "POST",
+        json: input,
+      }),
+    );
+    return mapVisitRequest(row);
+  },
+
+  async getOnlineVisitStatus(id) {
+    const row = await withReadableError(
+      apiFetch<BackendVisitRequest>(`/public/online-visits/${id}`),
+    );
+    return mapVisitRequest(row);
+  },
+
   async uploadVisitorPhoto(file: File): Promise<string> {
     const formData = new FormData();
     formData.append("file", file);
@@ -1263,7 +1299,7 @@ function mapVisitRequest(row: BackendVisitRequest): VisitRequest {
       id: String(row.residentId),
       name: row.residentName,
       role: "RESIDENT",
-      flatId: String(row.flatId),
+      flatId: row.flatId ? String(row.flatId) : "",
     },
     society: {
       id: String(row.societyId),
@@ -1271,13 +1307,15 @@ function mapVisitRequest(row: BackendVisitRequest): VisitRequest {
       address: "",
       buildings: [],
     },
-    flat: {
-      id: String(row.flatId),
-      number: row.flatNumber,
-      buildingId: "",
-      floorId: "",
-      residentIds: [String(row.residentId)],
-    },
+    flat: row.flatId
+      ? {
+          id: String(row.flatId),
+          number: row.flatNumber || "Office",
+          buildingId: "",
+          floorId: "",
+          residentIds: [String(row.residentId)],
+        }
+      : undefined,
     buildingName: row.buildingName,
     source: row.source,
     requestStatus: mapRequestStatus(row.requestStatus),

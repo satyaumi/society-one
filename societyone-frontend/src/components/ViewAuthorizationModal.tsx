@@ -64,7 +64,7 @@ export function ViewAuthorizationModal({
             <span className="text-white/60">→</span>
             <span>{request.buildingName || "Building"}</span>
             <span className="text-white/60">/</span>
-            <strong className="text-white">Flat {request.flat.number}</strong>
+            <strong className="text-white">{request.flat ? `Flat ${request.flat.number}` : "Management / Office"}</strong>
             <span className="text-white/60">→</span>
             <strong className="text-emerald-100 underline decoration-emerald-400">{request.visitor.name}</strong>
           </div>
@@ -141,7 +141,7 @@ export function ViewAuthorizationModal({
                 <span>Building & Flat</span>
               </div>
               <p className="font-semibold text-sm text-foreground">
-                {request.buildingName ? `${request.buildingName}, ` : ""}Flat {request.flat.number}
+                {request.flat ? `${request.buildingName ? `${request.buildingName}, ` : ""}Flat ${request.flat.number}` : (request.buildingName || "Society Management Office")}
               </p>
               <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <MapPin className="size-3" /> {request.society.name}

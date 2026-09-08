@@ -106,7 +106,7 @@ export interface VisitRequest {
   visitor: Visitor;
   resident: Resident;
   society: Society;
-  flat: Flat;
+  flat?: Flat;
   buildingName?: string;
   source: RequestSource;
   requestStatus: RequestStatus;
@@ -341,6 +341,41 @@ export interface PublicVisitRequestInput {
   residentId: number;
   expectedDate?: string;
   expectedTime?: string;
+}
+
+export interface PublicSociety {
+  id: number;
+  name: string;
+  address?: string;
+}
+
+export interface EligibleRecipient {
+  id: number;
+  fullName: string;
+  role: "ADMIN" | "RESIDENT";
+  designation?: string;
+  buildingId?: number;
+  buildingName?: string;
+  floorId?: number;
+  floorNumber?: number;
+  flatId?: number;
+  flatNumber?: string;
+}
+
+export interface OnlineVisitInput {
+  societyId: number;
+  recipientId: number;
+  fullName: string;
+  mobileNumber: string;
+  email?: string;
+  visitorType?: VisitorType;
+  purpose: string;
+  expectedDate?: string;
+  expectedTime?: string;
+  numberOfVisitors?: number;
+  vehicleNumber?: string;
+  photoUrl?: string;
+  notes?: string;
 }
 
 export type OnboardingStatus =

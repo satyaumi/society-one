@@ -10,6 +10,7 @@ import {
   Calendar,
   Clock,
   FileCheck2,
+  Globe,
   Home,
   Lock,
   Menu,
@@ -121,12 +122,17 @@ function HomePage() {
   const activitiesCount = summary?.todayActivitiesCount ?? summary?.todayVisitorsCount ?? 0;
   const societyName = summary?.societyName || summary?.primarySocietyName || "Residential Societies";
 
-  // Card 1: ONLINE (public visitor workflow, no auth needed)
-  function handleOnlineClick() {
+  // Card 1: ONLINE VISIT (dedicated advance registration workflow)
+  function handleOnlineVisitClick() {
+    void navigate({ to: "/online-visit" });
+  }
+
+  // Card 2: INSTANT VISIT (gate arrival workflow)
+  function handleInstantVisitClick() {
     void navigate({ to: "/invite" });
   }
 
-  // Card 2: AT SECURITY (preserves existing security auth)
+  // Card 3: AT SECURITY (preserves existing security auth)
   function handleSecurityClick() {
     const { isAuthenticated, user } = authStore.getState();
     if (isAuthenticated && user?.role === "SECURITY") {
@@ -136,7 +142,7 @@ function HomePage() {
     }
   }
 
-  // Card 3: REGULAR PASSES (preserves existing resident & security pass workflows)
+  // Card 4: REGULAR PASSES (preserves existing resident & security pass workflows)
   function handleRegularPassesClick() {
     const { isAuthenticated, user } = authStore.getState();
     if (isAuthenticated && user?.role === "RESIDENT") {
@@ -197,7 +203,19 @@ function HomePage() {
           </nav>
 
           {/* Header Action Buttons */}
-          <div className="hidden items-center gap-2.5 sm:flex">
+          <div className="hidden items-center gap-2 sm:flex">
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="font-medium text-brand-blue hover:text-brand-blue/90 hover:bg-brand-blue/10"
+            >
+              <Link to="/online-visit">
+                <Globe className="mr-1.5 size-4 text-brand-blue" />
+                Online Visit
+              </Link>
+            </Button>
+
             <Button
               asChild
               variant="ghost"
@@ -263,10 +281,16 @@ function HomePage() {
             </div>
 
             <div className="pt-2 border-t border-border flex flex-col gap-2">
+              <Button asChild className="w-full bg-brand-blue text-white hover:bg-brand-blue/90 justify-center">
+                <Link to="/online-visit" onClick={() => setMobileMenuOpen(false)}>
+                  <Globe className="mr-2 size-4" />
+                  Online Visit (Pre-Schedule Advance Entry)
+                </Link>
+              </Button>
               <Button asChild className="w-full bg-brand-orange text-white hover:bg-brand-orange/90 justify-center">
                 <Link to="/invite" onClick={() => setMobileMenuOpen(false)}>
                   <Zap className="mr-2 size-4" />
-                  Instant Visit Request (No Signup)
+                  Instant Visit (At Gate / Walk-in)
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-center">
@@ -462,7 +486,18 @@ function HomePage() {
               the gate security team.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="mt-8 flex flex-wrap gap-3 items-center">
+              <Button
+                asChild
+                size="lg"
+                className="group h-12 rounded-xl bg-brand-blue px-6 font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-blue/90 hover:shadow-lg active:translate-y-0 focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
+              >
+                <Link to="/online-visit">
+                  <Globe className="mr-2 size-4" />
+                  Online Visit (Pre-Register)
+                </Link>
+              </Button>
+
               <Button
                 asChild
                 size="lg"
@@ -470,18 +505,7 @@ function HomePage() {
               >
                 <Link to="/invite">
                   <Zap className="mr-2 size-4" />
-                  Instant Visit Request
-                </Link>
-              </Button>
-
-              <Button
-                asChild
-                size="lg"
-                className="group h-12 rounded-xl bg-brand-blue px-6 font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-blue/90 hover:shadow-lg active:translate-y-0 focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
-              >
-                <Link to="/auth">
-                  Resident & Staff Portal
-                  <ArrowRight className="ml-2 size-4 transition-transform duration-200 group-hover:translate-x-1" />
+                  Instant Visit (Gate)
                 </Link>
               </Button>
 
@@ -491,10 +515,10 @@ function HomePage() {
                 size="lg"
                 className="group h-12 rounded-xl px-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
               >
-                <a href="#how-it-works">
-                  See how it works
-                  <ChevronRight className="ml-1 size-4 transition-transform duration-200 group-hover:translate-x-1" />
-                </a>
+                <Link to="/auth">
+                  Portal Sign In
+                  <ArrowRight className="ml-2 size-4 transition-transform duration-200 group-hover:translate-x-1" />
+                </Link>
               </Button>
             </div>
 
@@ -608,7 +632,7 @@ function HomePage() {
           </div>
         </section>
 
-        {/* Section: 3 Interactive Feature Cards */}
+        {/* Section: 4 Interactive Feature Cards */}
         <section
           id="features"
           className="scroll-mt-14 mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"
@@ -618,30 +642,42 @@ function HomePage() {
               Tailored Access Points
             </p>
             <h2 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
-              Three clear ways into the community.
+              Four clear ways into the community.
             </h2>
             <p className="mt-3 text-sm text-muted-foreground sm:text-base">
               Click any workflow below to launch the dedicated experience.
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            {/* 1. ONLINE CARD */}
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {/* 1. ONLINE VISIT CARD */}
+            <InteractiveCard
+              icon={<Globe className="size-6 text-brand-blue" />}
+              iconBg="bg-info-soft"
+              tag="Public • Advance Entry"
+              tagColor="blue"
+              title="ONLINE VISIT"
+              detail="Pre-register your upcoming visit in advance. Select the resident or society management member you wish to visit, optionally provide photo ID, and receive instant entry clearance."
+              actionLabel="Register Online Visit"
+              onClick={handleOnlineVisitClick}
+            />
+
+            {/* 2. INSTANT VISIT CARD */}
             <InteractiveCard
               icon={<Zap className="size-6 text-brand-orange" />}
               iconBg="bg-warning-soft"
-              tag="Public • No Login Required"
+              tag="Public • Instant Walk-in"
               tagColor="amber"
-              title="ONLINE"
-              detail="Pre-schedule visits before arrivals. Guests submit requests directly, residents see instant alerts, and visitors track live approval statuses."
+              title="INSTANT VISIT"
+              detail="Quick on-the-spot visit request for immediate entry at the gate. Enter your details and flat number for direct resident push approval."
               actionLabel="Start Instant Visit"
-              onClick={handleOnlineClick}
+              onClick={handleInstantVisitClick}
             />
 
-            {/* 2. AT SECURITY CARD */}
+            {/* 3. AT SECURITY CARD */}
             <InteractiveCard
-              icon={<Users className="size-6 text-brand-blue" />}
-              iconBg="bg-info-soft"
+              icon={<Users className="size-6 text-indigo-600" />}
+              iconBg="bg-indigo-500/10"
               tag="Security Officers Desk"
               tagColor="blue"
               title="AT SECURITY"
@@ -650,7 +686,7 @@ function HomePage() {
               onClick={handleSecurityClick}
             />
 
-            {/* 3. REGULAR PASSES CARD */}
+            {/* 4. REGULAR PASSES CARD */}
             <InteractiveCard
               icon={<ShieldCheck className="size-6 text-emerald-600" />}
               iconBg="bg-emerald-500/10"

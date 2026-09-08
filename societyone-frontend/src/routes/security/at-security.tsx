@@ -115,7 +115,7 @@ function SecurityAtDeskPage() {
     if (!query) return requests;
     return requests.filter((r) => {
       const name = r.visitor.name?.toLowerCase() || "";
-      const flat = r.flat.number?.toLowerCase() || "";
+      const flat = r.flat?.number?.toLowerCase() || "";
       const vehicle = r.vehicleNumber?.toLowerCase() || "";
       const purpose = r.purpose?.toLowerCase() || "";
       return (

@@ -25,8 +25,8 @@ public class VisitRequest {
     @JoinColumn(name = "society_id", nullable = false)
     private Society society;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "flat_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "flat_id")
     private Flat flat;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

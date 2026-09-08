@@ -404,23 +404,16 @@ public class VisitorService {
     ) {
         requireAuthenticated(resident);
 
-        if (resident.getRole() != Role.RESIDENT) {
+        VisitRequest request = getRequestEntity(requestId);
+
+        boolean isDirectRecipient = request.getResident().getId().equals(resident.getId());
+        boolean isSocietyAdmin = resident.getRole() == Role.ADMIN
+                && getAdminSociety(resident).getId().equals(request.getSociety().getId());
+
+        if (!isDirectRecipient && !isSocietyAdmin) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Only residents can approve visitor requests"
-            );
-        }
-
-        VisitRequest request =
-                getRequestEntity(requestId);
-
-        if (!request.getResident()
-                .getId()
-                .equals(resident.getId())) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "You can only approve requests for yourself"
+                    "You can only approve requests addressed to you or your society"
             );
         }
 
@@ -452,23 +445,16 @@ public class VisitorService {
     ) {
         requireAuthenticated(resident);
 
-        if (resident.getRole() != Role.RESIDENT) {
+        VisitRequest request = getRequestEntity(requestId);
+
+        boolean isDirectRecipient = request.getResident().getId().equals(resident.getId());
+        boolean isSocietyAdmin = resident.getRole() == Role.ADMIN
+                && getAdminSociety(resident).getId().equals(request.getSociety().getId());
+
+        if (!isDirectRecipient && !isSocietyAdmin) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Only residents can reject visitor requests"
-            );
-        }
-
-        VisitRequest request =
-                getRequestEntity(requestId);
-
-        if (!request.getResident()
-                .getId()
-                .equals(resident.getId())) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "You can only reject requests for yourself"
+                    "You can only reject requests addressed to you or your society"
             );
         }
 
@@ -1161,6 +1147,9 @@ public class VisitorService {
         String buildingName = (request.getFlat() != null && request.getFlat().getBuilding() != null)
                 ? request.getFlat().getBuilding().getName() : null;
 
+        Long flatId = request.getFlat() != null ? request.getFlat().getId() : null;
+        String flatNumber = request.getFlat() != null ? request.getFlat().getNumber() : "Office / Admin";
+
         return new VisitRequestResponse(
                 request.getId(),
                 request.getVisitor().getId(),
@@ -1171,8 +1160,8 @@ public class VisitorService {
                 request.getSociety().getId(),
                 request.getSociety().getName(),
                 buildingName,
-                request.getFlat().getId(),
-                request.getFlat().getNumber(),
+                flatId,
+                flatNumber,
                 request.getResident().getId(),
                 request.getResident().getFullName(),
                 request.getSource(),

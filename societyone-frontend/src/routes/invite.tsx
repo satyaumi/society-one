@@ -645,12 +645,12 @@ export function InvitePage() {
                   </h2>
                   <p className="mt-1 text-sm opacity-90">
                     {isCheckedIn
-                      ? `You have checked in at the gate. Visiting Flat ${trackedRequest.flat.number}.`
+                      ? `You have checked in at the gate.${trackedRequest.flat ? ` Visiting Flat ${trackedRequest.flat.number}.` : ""}`
                       : isApproved
-                        ? `Resident ${trackedRequest.resident.name} has approved your visit. Please show this screen to the security guard at the gate.`
+                        ? `Recipient ${trackedRequest.resident.name} has approved your visit. Please show this screen to the security guard at the gate.`
                         : isDenied
                           ? "The resident has declined entry at this time. Entry cannot be permitted."
-                          : `Your request has been sent to ${trackedRequest.resident.name} for Flat ${trackedRequest.flat.number}. This page updates automatically.`}
+                          : `Your request has been sent to ${trackedRequest.resident.name}${trackedRequest.flat ? ` for Flat ${trackedRequest.flat.number}` : ""}. This page updates automatically.`}
                   </p>
                 </div>
               </div>
@@ -679,11 +679,11 @@ export function InvitePage() {
                 <span className="font-semibold">{trackedRequest.visitor.mobile}</span>
               </div>
               <div className="flex justify-between py-2.5">
-                <span className="text-muted-foreground">Destination Flat</span>
-                <span className="font-semibold">Flat {trackedRequest.flat.number}</span>
+                <span className="text-muted-foreground">Destination</span>
+                <span className="font-semibold">{trackedRequest.flat ? `Flat ${trackedRequest.flat.number}` : (trackedRequest.buildingName || "Management Office")}</span>
               </div>
               <div className="flex justify-between py-2.5">
-                <span className="text-muted-foreground">Resident</span>
+                <span className="text-muted-foreground">Resident / Host</span>
                 <span className="font-semibold">{trackedRequest.resident.name}</span>
               </div>
               <div className="flex justify-between py-2.5">

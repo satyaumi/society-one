@@ -446,7 +446,7 @@ export function RequestRow({
             </Badge>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {request.expectedDate} · {request.expectedTime} · Flat {request.flat.number}
+            {request.expectedDate} · {request.expectedTime}{request.flat?.number ? ` · Flat ${request.flat.number}` : (request.resident?.name ? ` · ${request.resident.name}` : "")}
             {request.buildingName && ` (${request.buildingName})`}
             {request.purpose && ` · ${request.purpose}`}
           </p>

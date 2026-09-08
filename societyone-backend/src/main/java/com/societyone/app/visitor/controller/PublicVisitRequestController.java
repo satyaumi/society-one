@@ -234,6 +234,186 @@ public class PublicVisitRequestController {
         return ApiResponse.success(toResponse(saved));
     }
 
+    @GetMapping("/societies")
+    @Transactional(readOnly = true)
+    public ApiResponse<List<com.societyone.app.visitor.dto.PublicSocietyResponse>> getPublicSocieties() {
+        List<Society> societies = societyRepository.findAll();
+        List<com.societyone.app.visitor.dto.PublicSocietyResponse> list = societies.stream()
+                .map(s -> new com.societyone.app.visitor.dto.PublicSocietyResponse(s.getId(), s.getName(), s.getAddress()))
+                .toList();
+        return ApiResponse.success(list);
+    }
+
+    @GetMapping("/societies/{societyId}/eligible-recipients")
+    @Transactional(readOnly = true)
+    public ApiResponse<List<com.societyone.app.visitor.dto.EligibleRecipientResponse>> getEligibleRecipients(
+            @PathVariable Long societyId
+    ) {
+        Society society = societyRepository.findById(societyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Society not found"));
+
+        List<com.societyone.app.visitor.dto.EligibleRecipientResponse> results = new ArrayList<>();
+
+        // 1. Society Admin / Management
+        if (society.getOwner() != null) {
+            User admin = society.getOwner();
+            results.add(new com.societyone.app.visitor.dto.EligibleRecipientResponse(
+                    admin.getId(),
+                    admin.getFullName(),
+                    "ADMIN",
+                    "Society Management / Administration",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+            ));
+        }
+
+        // 2. Residents belonging to flats in this society
+        List<ResidentProfile> profiles = residentProfileRepository.findAll();
+        for (ResidentProfile rp : profiles) {
+            if (rp.getUser() != null && rp.getFlat() != null && rp.getFlat().getSociety() != null
+                    && rp.getFlat().getSociety().getId().equals(societyId)) {
+
+                Building bld = rp.getFlat().getFloor() != null ? rp.getFlat().getFloor().getBuilding() : null;
+                Floor flr = rp.getFlat().getFloor();
+                Flat flt = rp.getFlat();
+
+                String designation = rp.getResidentType() != null ? rp.getResidentType().name() : "Resident";
+
+                results.add(new com.societyone.app.visitor.dto.EligibleRecipientResponse(
+                        rp.getUser().getId(),
+                        rp.getUser().getFullName(),
+                        "RESIDENT",
+                        designation,
+                        bld != null ? bld.getId() : null,
+                        bld != null ? bld.getName() : null,
+                        flr != null ? flr.getId() : null,
+                        flr != null ? flr.getNumber() : null,
+                        flt.getId(),
+                        flt.getNumber()
+                ));
+            }
+        }
+
+        // Sort: Admins first, then Residents alphabetically by full name
+        results.sort((a, b) -> {
+            if ("ADMIN".equals(a.role()) && !"ADMIN".equals(b.role())) return -1;
+            if (!"ADMIN".equals(a.role()) && "ADMIN".equals(b.role())) return 1;
+            return a.fullName().compareToIgnoreCase(b.fullName());
+        });
+
+        return ApiResponse.success(results);
+    }
+
+    @PostMapping("/online-visits")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<VisitRequestResponse> createOnlineVisit(
+            @Valid @RequestBody com.societyone.app.visitor.dto.OnlineVisitCreateRequest request
+    ) {
+        Society society = societyRepository.findById(request.societyId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Society not found"));
+
+        User recipient = userRepository.findById(request.recipientId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected recipient not found"));
+
+        Flat targetFlat = null;
+
+        if (recipient.getRole() == Role.RESIDENT) {
+            ResidentProfile profile = residentProfileRepository.findByUserId(recipient.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected resident has no active flat assignment"));
+
+            if (profile.getFlat() == null || profile.getFlat().getSociety() == null
+                    || !profile.getFlat().getSociety().getId().equals(society.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected resident does not belong to this society");
+            }
+            targetFlat = profile.getFlat();
+        } else if (recipient.getRole() == Role.ADMIN) {
+            // Validate Admin belongs to society
+            boolean isOwner = society.getOwner() != null && society.getOwner().getId().equals(recipient.getId());
+            if (!isOwner) {
+                // If not direct owner, verify admin role
+                if (recipient.getRole() != Role.ADMIN) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not an administrator of this society");
+                }
+            }
+            // Flat is optional/null for society administration
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipient must be a resident or society administrator");
+        }
+
+        String mobile = request.mobileNumber().trim();
+        Visitor visitor = visitorRepository.findFirstByMobileNumber(mobile)
+                .orElseGet(() -> {
+                    Visitor v = new Visitor();
+                    v.setFullName(request.fullName().trim());
+                    v.setMobileNumber(mobile);
+                    v.setVisitorType(request.visitorType() != null ? request.visitorType() : VisitorType.GUEST);
+                    if (request.vehicleNumber() != null && !request.vehicleNumber().isBlank()) {
+                        v.setVehicleNumber(request.vehicleNumber().trim().toUpperCase());
+                    }
+                    if (request.photoUrl() != null && !request.photoUrl().isBlank()) {
+                        v.setPhotoUrl(request.photoUrl().trim());
+                    }
+                    return visitorRepository.saveAndFlush(v);
+                });
+
+        if (request.photoUrl() != null && !request.photoUrl().isBlank()
+                && (visitor.getPhotoUrl() == null || visitor.getPhotoUrl().isBlank())) {
+            visitor.setPhotoUrl(request.photoUrl().trim());
+            visitor = visitorRepository.saveAndFlush(visitor);
+        }
+
+        VisitRequest vr = new VisitRequest();
+        vr.setVisitor(visitor);
+        vr.setSociety(society);
+        vr.setFlat(targetFlat);
+        vr.setResident(recipient);
+        vr.setVisitorUser(null);
+        vr.setSource(VisitSource.VISITOR);
+        vr.setRequestStatus(VisitRequestStatus.PENDING_RESIDENT);
+        vr.setVisitStatus(VisitStatus.EXPECTED);
+        vr.setExpectedDate(request.expectedDate() != null ? request.expectedDate() : LocalDate.now());
+        vr.setExpectedTime(request.expectedTime() != null ? request.expectedTime() : LocalTime.now());
+        vr.setPurpose(request.purpose().trim());
+        if (request.vehicleNumber() != null && !request.vehicleNumber().isBlank()) {
+            vr.setVehicleNumber(request.vehicleNumber().trim().toUpperCase());
+        }
+
+        VisitRequest saved = visitRequestRepository.saveAndFlush(vr);
+
+        String destinationStr = targetFlat != null ? "flat " + targetFlat.getNumber() : "Society Office / Admin";
+
+        notificationService.send(
+                recipient.getId(),
+                society.getId(),
+                NotificationType.REQUEST,
+                "New Online Visit Request",
+                visitor.getFullName() + " submitted an online visit request for " + destinationStr + " (" + request.purpose().trim() + "). Please review and approve.",
+                saved.getId()
+        );
+
+        auditService.record(
+                recipient.getId(),
+                society.getId(),
+                AuditAction.VISIT_REQUEST_CREATED,
+                "VISIT_REQUEST",
+                saved.getId(),
+                "Online visit request submitted for " + visitor.getFullName() + " → " + destinationStr
+        );
+
+        return ApiResponse.success(toResponse(saved));
+    }
+
+    @GetMapping("/online-visits/{id}")
+    public ApiResponse<VisitRequestResponse> getOnlineVisitStatus(@PathVariable Long id) {
+        VisitRequest vr = visitRequestRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Online visit request not found"));
+        return ApiResponse.success(toResponse(vr));
+    }
+
     @GetMapping("/visit-requests/{id}")
     public ApiResponse<VisitRequestResponse> getPublicVisitRequestStatus(@PathVariable Long id) {
         VisitRequest vr = visitRequestRepository.findById(id)
@@ -251,7 +431,12 @@ public class PublicVisitRequestController {
 
     private VisitRequestResponse toResponse(VisitRequest r) {
         String buildingName = (r.getFlat() != null && r.getFlat().getBuilding() != null)
-                ? r.getFlat().getBuilding().getName() : null;
+                ? r.getFlat().getBuilding().getName()
+                : (r.getFlat() != null && r.getFlat().getFloor() != null && r.getFlat().getFloor().getBuilding() != null
+                    ? r.getFlat().getFloor().getBuilding().getName() : null);
+
+        Long flatId = r.getFlat() != null ? r.getFlat().getId() : null;
+        String flatNumber = r.getFlat() != null ? r.getFlat().getNumber() : "Office / Admin";
 
         return new VisitRequestResponse(
                 r.getId(),
@@ -263,8 +448,8 @@ public class PublicVisitRequestController {
                 r.getSociety().getId(),
                 r.getSociety().getName(),
                 buildingName,
-                r.getFlat().getId(),
-                r.getFlat().getNumber(),
+                flatId,
+                flatNumber,
                 r.getResident().getId(),
                 r.getResident().getFullName(),
                 r.getSource(),
