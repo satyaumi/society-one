@@ -32,17 +32,17 @@ spring:
   mail:
     host: ${SPRING_MAIL_HOST:${SMTP_HOST:smtp.gmail.com}}
     port: ${SPRING_MAIL_PORT:${SMTP_PORT:587}}
-    username: ${SPRING_MAIL_USERNAME:${SMTP_USERNAME:}}
-    password: ${SPRING_MAIL_PASSWORD:${SMTP_PASSWORD:}}
+    username: ${SPRING_MAIL_USERNAME:${SMTP_USERNAME:supportsocietyone@gmail.com}}
+    password: ${SPRING_MAIL_PASSWORD:${SMTP_PASSWORD:muyixwispsnftkpo}}
     properties:
       mail:
         smtp:
           auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:${SMTP_AUTH:true}}
           starttls:
             enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:${SMTP_STARTTLS:true}}
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
 
 server:
   port: ${PORT:${SERVER_PORT:8081}}
@@ -78,7 +78,7 @@ societyone:
       secret: ${JWT_SECRET:KrHYbZiErgOZGL3TStmT/lSpso1dWffBoH94bZw615s=}
       expiration-ms: ${JWT_EXPIRATION_MS:86400000}
   mail:
-    from: ${MAIL_FROM:onboarding@resend.dev}
+    from: ${MAIL_FROM:supportsocietyone@gmail.com}
     from-name: ${MAIL_FROM_NAME:SocietyOne}
     enabled: ${MAIL_ENABLED:true}
     dev-fallback-enabled: ${MAIL_DEV_FALLBACK_ENABLED:true}

@@ -102,22 +102,45 @@ public class EmailService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Email delivery is disabled on this server.");
         }
 
-        // 1. Try Resend HTTPS REST API first if configured
+        // 1. Try SMTP first (Gmail SMTP delivers to any email address worldwide)
+        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+        boolean hasCredentials = mailUsername != null && !mailUsername.isBlank();
+
+        if (mailSender != null && hasCredentials) {
+            try {
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(
+                        message,
+                        MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
+                        StandardCharsets.UTF_8.name()
+                );
+
+                String smtpSender = (mailUsername != null && !mailUsername.isBlank()) ? mailUsername.trim() : fromEmail;
+                helper.setFrom(smtpSender, fromName);
+                helper.setTo(toEmail.trim());
+                helper.setSubject(subject);
+                helper.setText(textContent, htmlContent);
+
+                mailSender.send(message);
+                log.info("[EmailService] OTP email successfully dispatched to {} via SMTP for purpose {}", toEmail, purpose);
+                return;
+            } catch (Exception e) {
+                log.warn("[EmailService] SMTP transmission failed for {}: {}. Attempting Resend fallback...", toEmail, e.getMessage());
+            }
+        }
+
+        // 2. Try Resend HTTPS REST API fallback
         if (resendApiKey != null && !resendApiKey.isBlank()) {
             boolean sent = sendViaResend(toEmail, subject, textContent, htmlContent);
             if (sent) {
                 log.info("[EmailService] OTP email successfully dispatched to {} via Resend API for purpose {}", toEmail, purpose);
                 return;
             }
-            log.warn("[EmailService] Resend API transmission failed. Attempting SMTP fallback...");
+            log.warn("[EmailService] Resend API transmission failed.");
         }
 
-        // 2. Try SMTP fallback
-        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        boolean hasCredentials = mailUsername != null && !mailUsername.isBlank();
-
-        if (mailSender == null || !hasCredentials) {
-            log.warn("[EmailService] Real email transmission skipped: Neither Resend API key nor SMTP credentials are configured! " +
+        if (!hasCredentials && (resendApiKey == null || resendApiKey.isBlank())) {
+            log.warn("[EmailService] Real email transmission skipped: Neither SMTP credentials nor Resend API key are configured! " +
                      "[DEV OTP FALLBACK] To: {} | Subject: '{}' | OTP: {} (valid for {} mins)",
                     toEmail, subject, otp, validMinutes);
             if (devFallbackEnabled) {
@@ -125,26 +148,9 @@ public class EmailService {
             }
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
-                    "Email service is not configured. Please set RESEND_API_KEY in environment variables to send real emails."
+                    "Email service is not configured. Please configure SMTP credentials to send real emails."
             );
         }
-
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(
-                    message,
-                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
-                    StandardCharsets.UTF_8.name()
-            );
-
-            String smtpSender = (mailUsername != null && !mailUsername.isBlank()) ? mailUsername.trim() : fromEmail;
-            helper.setFrom(smtpSender, fromName);
-            helper.setTo(toEmail.trim());
-            helper.setSubject(subject);
-            helper.setText(textContent, htmlContent);
-
-            mailSender.send(message);
-            log.info("[EmailService] OTP email successfully dispatched to {} via SMTP for purpose {}", toEmail, purpose);
 
         } catch (MessagingException | UnsupportedEncodingException e) {
             log.error("[EmailService] Failed to create MIME message for {}: {}", toEmail, e.getMessage(), e);
@@ -459,37 +465,42 @@ public class EmailService {
                         username, formattedTime, securityNotice
                 );
 
-                // Try Resend first
+                // 1. Try SMTP first (Gmail SMTP delivers to any recipient inbox worldwide)
+                JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+                boolean hasCredentials = mailUsername != null && !mailUsername.isBlank();
+                if (mailSender != null && hasCredentials) {
+                    try {
+                        MimeMessage message = mailSender.createMimeMessage();
+                        MimeMessageHelper helper = new MimeMessageHelper(
+                                message,
+                                MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
+                                StandardCharsets.UTF_8.name()
+                        );
+
+                        String smtpSender = (mailUsername != null && !mailUsername.isBlank()) ? mailUsername.trim() : fromEmail;
+                        helper.setFrom(smtpSender, fromName);
+                        helper.setTo(toEmail.trim());
+                        helper.setSubject(subject);
+                        helper.setText(text, html);
+
+                        mailSender.send(message);
+                        log.info("[EmailService] {} activity email successfully dispatched to {} via SMTP", activityType, toEmail);
+                        return;
+                    } catch (Exception e) {
+                        log.warn("[EmailService] SMTP transmission failed for {}: {}. Attempting Resend fallback...", toEmail, e.getMessage());
+                    }
+                } else {
+                    log.warn("[EmailService] SMTP delivery skipped for {}: mailSender is {} and hasCredentials is {}",
+                            toEmail, mailSender != null ? "available" : "null", hasCredentials);
+                }
+
+                // 2. Fallback to Resend API
                 if (resendApiKey != null && !resendApiKey.isBlank()) {
                     boolean sent = sendViaResend(toEmail, subject, text, html);
                     if (sent) {
                         log.info("[EmailService] {} activity email successfully dispatched to {} via Resend API", activityType, toEmail);
                         return;
                     }
-                }
-
-                // Fallback to SMTP
-                JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-                boolean hasCredentials = mailUsername != null && !mailUsername.isBlank();
-                if (mailSender != null && hasCredentials) {
-                    MimeMessage message = mailSender.createMimeMessage();
-                    MimeMessageHelper helper = new MimeMessageHelper(
-                            message,
-                            MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
-                            StandardCharsets.UTF_8.name()
-                    );
-
-                    String smtpSender = (mailUsername != null && !mailUsername.isBlank()) ? mailUsername.trim() : fromEmail;
-                    helper.setFrom(smtpSender, fromName);
-                    helper.setTo(toEmail.trim());
-                    helper.setSubject(subject);
-                    helper.setText(text, html);
-
-                    mailSender.send(message);
-                    log.info("[EmailService] {} activity email successfully dispatched to {} via SMTP", activityType, toEmail);
-                } else {
-                    log.warn("[EmailService] SMTP delivery skipped for {}: mailSender is {} and hasCredentials is {}",
-                            toEmail, mailSender != null ? "available" : "null", hasCredentials);
                 }
             } catch (Exception e) {
                 log.warn("[EmailService] Failed to send {} activity email to {}: {}", activityType, toEmail, e.getMessage(), e);

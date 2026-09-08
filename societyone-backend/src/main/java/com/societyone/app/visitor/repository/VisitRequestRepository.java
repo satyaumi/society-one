@@ -47,6 +47,8 @@ public interface VisitRequestRepository
 
     List<VisitRequest> findByVisitor_MobileNumberOrderByCreatedAtDesc(String mobileNumber);
 
+    List<VisitRequest> findByVisitor_EmailOrderByCreatedAtDesc(String email);
+
     @org.springframework.data.jpa.repository.Query("SELECT vr FROM VisitRequest vr WHERE vr.visitorUser.id = :userId OR (vr.visitor.mobileNumber = :mobile AND :mobile IS NOT NULL) ORDER BY vr.createdAt DESC")
     List<VisitRequest> findByVisitorUserOrMobile(
             @org.springframework.data.repository.query.Param("userId") Long userId,

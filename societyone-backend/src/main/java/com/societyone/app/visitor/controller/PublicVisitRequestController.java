@@ -446,6 +446,30 @@ public class PublicVisitRequestController {
         return ApiResponse.success(toResponse(vr));
     }
 
+    @GetMapping("/online-visits/track")
+    public ApiResponse<List<VisitRequestResponse>> trackOnlineVisits(
+            @RequestParam(required = false) Long requestId,
+            @RequestParam(required = false) String mobileNumber,
+            @RequestParam(required = false) String email
+    ) {
+        if (requestId != null) {
+            return visitRequestRepository.findById(requestId)
+                    .map(vr -> ApiResponse.success(List.of(toResponse(vr))))
+                    .orElseGet(() -> ApiResponse.success(List.of()));
+        }
+        if (mobileNumber != null && !mobileNumber.isBlank()) {
+            String clean = mobileNumber.trim();
+            List<VisitRequest> list = visitRequestRepository.findByVisitor_MobileNumberOrderByCreatedAtDesc(clean);
+            return ApiResponse.success(list.stream().map(this::toResponse).toList());
+        }
+        if (email != null && !email.isBlank()) {
+            String clean = email.trim().toLowerCase();
+            List<VisitRequest> list = visitRequestRepository.findByVisitor_EmailOrderByCreatedAtDesc(clean);
+            return ApiResponse.success(list.stream().map(this::toResponse).toList());
+        }
+        return ApiResponse.success(List.of());
+    }
+
     @GetMapping("/visit-requests/{id}")
     public ApiResponse<VisitRequestResponse> getPublicVisitRequestStatus(@PathVariable Long id) {
         VisitRequest vr = visitRequestRepository.findById(id)

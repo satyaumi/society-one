@@ -34,6 +34,7 @@ import {
   getAnnouncementImage,
 } from "@/components/notifications/AnnouncementDetailsModal";
 import { ShareModal } from "@/components/share/ShareModal";
+import { OnlineVisitTrackerModal } from "@/components/visitor/OnlineVisitTrackerModal";
 import { authStore } from "@/lib/auth/auth-store";
 import { WorkflowDemo } from "@/components/landing/WorkflowDemo";
 
@@ -205,6 +206,12 @@ function HomePage() {
 
           {/* Header Action Buttons (Desktop & Tablet) */}
           <div className="hidden items-center gap-2 md:flex">
+            <OnlineVisitTrackerModal
+              triggerVariant="ghost"
+              triggerSize="sm"
+              triggerClassName="font-medium text-muted-foreground hover:text-foreground"
+            />
+
             <ShareModal
               triggerVariant="outline"
               triggerSize="sm"
@@ -296,6 +303,10 @@ function HomePage() {
             </div>
 
             <div className="pt-2 border-t border-border flex flex-col gap-2">
+              <OnlineVisitTrackerModal
+                triggerVariant="outline"
+                triggerClassName="w-full justify-center"
+              />
               <ShareModal
                 triggerVariant="outline"
                 triggerClassName="w-full justify-center"

@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import societyOneLogo from "@/assets/societyone-logo.png";
 import { ShareModal } from "@/components/share/ShareModal";
+import { OnlineVisitTrackerModal } from "@/components/visitor/OnlineVisitTrackerModal";
 import { visitorService } from "@/services";
 import type {
   EligibleRecipient,
@@ -385,6 +386,13 @@ function OnlineVisitPage() {
 
             {/* Actions */}
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <OnlineVisitTrackerModal
+                initialRequestId={submittedRequest.id}
+                triggerVariant="default"
+                triggerSize="default"
+                triggerClassName="bg-brand-blue text-white hover:bg-brand-blue/90 shadow-md font-semibold"
+              />
+
               <Button
                 onClick={() => {
                   setSubmittedRequest(null);
@@ -393,7 +401,7 @@ function OnlineVisitPage() {
                   setPhotoPreview(null);
                   setPhotoUrl(undefined);
                 }}
-                className="gap-2 bg-primary font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+                className="gap-2 bg-secondary text-secondary-foreground font-semibold shadow-xs hover:bg-secondary/80"
               >
                 <RefreshCw className="size-4" />
                 Register Another Visit
@@ -408,7 +416,7 @@ function OnlineVisitPage() {
               <Button asChild variant="outline">
                 <Link to="/">
                   <Home className="mr-1.5 size-4" />
-                  Back to Home
+                  Home
                 </Link>
               </Button>
             </div>
@@ -431,6 +439,11 @@ function OnlineVisitPage() {
           </Link>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <OnlineVisitTrackerModal
+              triggerVariant="outline"
+              triggerSize="sm"
+              triggerClassName="h-9 px-2.5 sm:px-3 text-xs sm:text-sm shrink-0"
+            />
             <ShareModal
               triggerVariant="outline"
               triggerSize="sm"

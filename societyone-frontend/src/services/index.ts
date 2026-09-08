@@ -192,6 +192,7 @@ export interface VisitorService {
   listEligibleRecipients(societyId: number | string): Promise<EligibleRecipient[]>;
   createOnlineVisit(input: OnlineVisitInput): Promise<VisitRequest>;
   getOnlineVisitStatus(id: string | number): Promise<VisitRequest>;
+  trackOnlineVisits(query: { requestId?: string | number; mobileNumber?: string; email?: string }): Promise<VisitRequest[]>;
   uploadVisitorPhoto(file: File): Promise<string>;
   uploadPublicVisitorPhoto(file: File): Promise<string>;
   lookupByMobile(mobile: string): Promise<Visitor | null>;
@@ -1145,6 +1146,18 @@ export const visitorService: VisitorService = {
       apiFetch<BackendVisitRequest>(`/public/online-visits/${id}`),
     );
     return mapVisitRequest(row);
+  },
+
+  async trackOnlineVisits(query) {
+    const params = new URLSearchParams();
+    if (query.requestId) params.set("requestId", String(query.requestId));
+    if (query.mobileNumber) params.set("mobileNumber", query.mobileNumber);
+    if (query.email) params.set("email", query.email);
+
+    const rows = await withReadableError(
+      apiFetch<BackendVisitRequest[]>(`/public/online-visits/track?${params.toString()}`),
+    );
+    return Array.isArray(rows) ? rows.map(mapVisitRequest) : [];
   },
 
   async uploadVisitorPhoto(file: File): Promise<string> {
