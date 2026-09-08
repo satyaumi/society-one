@@ -19,7 +19,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/societyone-frontend/dist/index.html"
+      "destination": "/index.html"
     }
   ]
 }
