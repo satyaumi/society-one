@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ShieldCheck } from "lucide-react";
-import logoAsset from "@/assets/societyone-logo.png.asset.json";
+import societyOneLogo from "@/assets/societyone-logo.png";
 import { Link } from "@tanstack/react-router";
 /**
  * Reusable split-screen authentication shell.
@@ -30,9 +30,11 @@ export function AuthLayout({
   aria-label="Go to SocietyOne home"
   >
   <img
-    src={logoAsset.url}
+    src={societyOneLogo}
     alt="SocietyOne"
-    className="size-11 rounded-xl object-cover"
+    loading="eager"
+    decoding="sync"
+    className="size-11 rounded-xl object-cover shadow-sm"
   />
   <span className="font-display text-xl font-bold">
     Society<span className="text-sidebar-primary">One</span>
@@ -63,9 +65,11 @@ export function AuthLayout({
     aria-label="Go to SocietyOne home"
   >
     <img
-      src={logoAsset.url}
+      src={societyOneLogo}
       alt="SocietyOne"
-      className="size-12 rounded-xl object-cover"
+      loading="eager"
+      decoding="sync"
+      className="size-12 rounded-xl object-cover shadow-sm"
     />
     <p className="mt-4 font-display text-xl font-bold">
       Society<span className="text-brand-orange">One</span>
