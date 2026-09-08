@@ -240,8 +240,9 @@ public class SocietyCreationRequestService {
         SocietyCreationRequest req = requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Application not found"));
 
+        User reviewer = resolveManagedActor(actor);
         req.setStatus(SocietyRequestStatus.UNDER_REVIEW);
-        req.setReviewerUser(actor);
+        req.setReviewerUser(reviewer);
         req.setReviewedAt(OffsetDateTime.now());
         if (action != null && action.notes() != null) {
             req.setReviewNotes(action.notes().trim());
@@ -269,8 +270,9 @@ public class SocietyCreationRequestService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please provide change request notes explaining what details need updating.");
         }
 
+        User reviewer = resolveManagedActor(actor);
         req.setStatus(SocietyRequestStatus.CHANGES_REQUESTED);
-        req.setReviewerUser(actor);
+        req.setReviewerUser(reviewer);
         req.setReviewedAt(OffsetDateTime.now());
         req.setReviewNotes(action.notes().trim());
         SocietyCreationRequest saved = requestRepository.save(req);
@@ -314,8 +316,9 @@ public class SocietyCreationRequestService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please provide a rejection reason.");
         }
 
+        User reviewer = resolveManagedActor(actor);
         req.setStatus(SocietyRequestStatus.REJECTED);
-        req.setReviewerUser(actor);
+        req.setReviewerUser(reviewer);
         req.setReviewedAt(OffsetDateTime.now());
         req.setRejectionReason(action.reason().trim());
         SocietyCreationRequest saved = requestRepository.save(req);
@@ -368,16 +371,18 @@ public class SocietyCreationRequestService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A society with name '" + req.getSocietyName() + "' already exists.");
         }
 
+        User reviewer = resolveManagedActor(actor);
+
         // 1. Resolve or Provision the Society Admin User
         User adminUser = resolveOrProvisionSocietyAdmin(req, action != null ? action.adminPassword() : null);
 
         // 2. Create and Persist the Society entity
         Society society = new Society();
-        society.setName(req.getSocietyName().trim());
-        society.setAddress(req.getAddress().trim());
-        society.setCity(req.getCity().trim());
-        society.setState(req.getState().trim());
-        society.setPostalCode(req.getPostalCode().trim());
+        society.setName(req.getSocietyName() != null ? req.getSocietyName().trim() : "Society");
+        society.setAddress(req.getAddress() != null ? req.getAddress().trim() : "");
+        society.setCity(req.getCity() != null ? req.getCity().trim() : "");
+        society.setState(req.getState() != null ? req.getState().trim() : "");
+        society.setPostalCode(req.getPostalCode() != null ? req.getPostalCode().trim() : "");
         society.setContactPhone(req.getPrimaryContactPhone());
         society.setContactEmail(req.getPrimaryContactEmail());
         society.setStatus(StructureStatus.ACTIVE);
@@ -398,7 +403,7 @@ public class SocietyCreationRequestService {
         // 4. Update the Request Status
         req.setStatus(SocietyRequestStatus.SOCIETY_CREATED);
         req.setCreatedSociety(savedSociety);
-        req.setReviewerUser(actor);
+        req.setReviewerUser(reviewer);
         req.setReviewedAt(OffsetDateTime.now());
         if (action != null && action.notes() != null) {
             req.setReviewNotes(action.notes().trim());
@@ -491,6 +496,13 @@ public class SocietyCreationRequestService {
     // =========================================================================
     // Helpers
     // =========================================================================
+
+    private User resolveManagedActor(User actor) {
+        if (actor == null || actor.getId() == null) {
+            return null;
+        }
+        return userRepository.findById(actor.getId()).orElse(actor);
+    }
 
     private User resolveOrProvisionSocietyAdmin(SocietyCreationRequest req, String customPassword) {
         String email = req.getPrimaryContactEmail();
