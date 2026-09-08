@@ -30,7 +30,7 @@ public class DashboardController {
     }
 
     @GetMapping("/command-center")
-    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'ADMIN')")
     public ApiResponse<com.societyone.app.dashboard.dto.SocietyCommandCenterResponse> getCommandCenter(
             Authentication authentication,
             @RequestParam(required = false) Long buildingId,

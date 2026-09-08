@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   ArrowRight,
@@ -47,6 +47,7 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function DashboardPage() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [stats, setStats] = useState<DashboardSummary[]>([]);
   const [requests, setRequests] = useState<VisitRequest[]>([]);
@@ -56,6 +57,12 @@ function DashboardPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.role === "PLATFORM_ADMIN") {
+      void navigate({ to: "/platform" });
+    }
+  }, [user?.role, navigate]);
 
   async function loadDashboard() {
     try {

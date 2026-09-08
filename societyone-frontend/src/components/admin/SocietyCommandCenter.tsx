@@ -170,6 +170,37 @@ export function SocietyCommandCenter({ initialBuildingId }: SocietyCommandCenter
 
   const { society, kpis, actionRequired, visitorAnalytics, residentAnalytics, securityGate, upcomingAnnouncements, recentActivity } = data;
 
+  if (society.id === 0 || society.name === "No Society Provisioned Yet") {
+    return (
+      <div className="rounded-3xl border border-border/80 bg-card p-8 sm:p-12 text-center shadow-sm max-w-2xl mx-auto space-y-4">
+        <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-brand-blue/10 text-brand-blue">
+          <Building2 className="size-8" />
+        </div>
+        <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
+          Society Onboarding Pending
+        </h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Your society registration request is currently under review by the Platform Management Boss.
+          Once reviewed and approved, your society structure, towers, and apartment management portal will be automatically handed over to your account.
+        </p>
+        <div className="pt-2 flex flex-wrap justify-center gap-3">
+          <Button
+            onClick={() => void loadData(true)}
+            variant="outline"
+            className="h-10 px-4"
+          >
+            <RefreshCw className="mr-2 size-4" /> Check Status
+          </Button>
+          <Link to="/register-society">
+            <Button className="h-10 px-4 bg-brand-blue hover:bg-brand-blue/90 text-white">
+              Track Society Application
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 pb-12">
       {/* 1. SOCIETY COMMAND CENTER HEADER */}

@@ -97,6 +97,9 @@ public class DashboardService {
 
     private DashboardSummaryResponse adminSummary(User admin) {
         Society society = getAdminSociety(admin);
+        if (society == null) {
+            return emptySummary();
+        }
         Long societyId = society.getId();
 
         List<Building> buildings =
@@ -579,17 +582,15 @@ public class DashboardService {
     }
 
     private Society getAdminSociety(User admin) {
+        if (admin.getRole() == Role.PLATFORM_ADMIN) {
+            return societyRepository.findAll().stream().findFirst().orElse(null);
+        }
         return societyRepository
                 .findByOwnerOrderByNameAsc(admin)
                 .stream()
                 .findFirst()
                 .or(() -> societyRepository.findAll().stream().findFirst())
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.FORBIDDEN,
-                                "Admin has no society"
-                        )
-                );
+                .orElse(null);
     }
 
     private static void requireAuthenticated(User actor) {
@@ -608,6 +609,43 @@ public class DashboardService {
         }
 
         Society society = getAdminSociety(actor);
+        if (society == null) {
+            SocietyCommandCenterResponse.SocietyHeaderInfo emptyHeader = new SocietyCommandCenterResponse.SocietyHeaderInfo(
+                    0L,
+                    "No Society Provisioned Yet",
+                    "No society has been provisioned or linked to this account yet.",
+                    "—",
+                    "—",
+                    "—",
+                    0,
+                    0
+            );
+            SocietyCommandCenterResponse.KpiMetrics emptyKpis = new SocietyCommandCenterResponse.KpiMetrics(
+                    0, 0L, 0L, 0L, 0L, 0L, 0L, 0.0,
+                    0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0
+            );
+            SocietyCommandCenterResponse.VisitorAnalyticsSummary emptyVisitor = new SocietyCommandCenterResponse.VisitorAnalyticsSummary(
+                    0L, List.of(), List.of(), List.of(), List.of()
+            );
+            SocietyCommandCenterResponse.ResidentAnalyticsSummary emptyResident = new SocietyCommandCenterResponse.ResidentAnalyticsSummary(
+                    0, 0L, 0L, 0L, List.of(), List.of()
+            );
+            SocietyCommandCenterResponse.SecurityGateSummary emptyGate = new SocietyCommandCenterResponse.SecurityGateSummary(
+                    0L, 0L, 0L, 0L, 0L, List.of(), List.of()
+            );
+            return new SocietyCommandCenterResponse(
+                    emptyHeader,
+                    emptyKpis,
+                    List.of(),
+                    List.of(),
+                    emptyVisitor,
+                    emptyResident,
+                    emptyGate,
+                    List.of(),
+                    List.of()
+            );
+        }
+
         Long societyId = society.getId();
 
         // 1. Structure

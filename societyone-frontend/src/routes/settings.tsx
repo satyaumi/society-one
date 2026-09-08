@@ -569,7 +569,13 @@ function SettingsPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm">
             <div className="rounded-lg bg-secondary/50 p-3">
               <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Account Role</p>
-              <p className="mt-1 font-semibold text-foreground">{user?.role}</p>
+              <p className="mt-1 font-semibold text-foreground">
+                {user?.role === "PLATFORM_ADMIN"
+                  ? "Platform Management (Super Admin / Boss)"
+                  : user?.role === "ADMIN"
+                  ? "Society Admin (Sub-Admin)"
+                  : user?.role}
+              </p>
             </div>
             <div className="rounded-lg bg-secondary/50 p-3">
               <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Authentication</p>
