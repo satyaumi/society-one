@@ -140,29 +140,41 @@ export function ShareModal({
           children
         ) : customButton ? (
           customButton
-        ) : (
+        ) : triggerSize === "icon" ? (
           <Button
+            type="button"
             variant={triggerVariant}
-            size={triggerSize}
-            className={`gap-1.5 font-medium transition-all duration-200 hover:-translate-y-0.5 ${triggerClassName || ""}`}
+            size="icon"
+            className={`transition-all duration-200 hover:-translate-y-0.5 shrink-0 ${triggerClassName || ""}`}
+            aria-label={title || "Share application"}
           >
             <Share2 className="size-4 text-brand-orange" />
+            <span className="sr-only">Share</span>
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant={triggerVariant}
+            size={triggerSize}
+            className={`gap-1.5 font-medium transition-all duration-200 hover:-translate-y-0.5 shrink-0 ${triggerClassName || ""}`}
+          >
+            <Share2 className="size-4 text-brand-orange shrink-0" />
             <span>Share</span>
           </Button>
         )}
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md rounded-3xl border-border bg-card p-6 shadow-2xl">
+      <DialogContent className="w-[94vw] max-w-md rounded-2xl sm:rounded-3xl border-border bg-card p-5 sm:p-6 shadow-2xl">
         <DialogHeader className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <div className="grid size-9 place-items-center rounded-xl bg-brand-orange/10 text-brand-orange">
-              <Share2 className="size-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-orange/10 text-brand-orange">
+              <Share2 className="size-4.5" />
             </div>
-            <div>
-              <DialogTitle className="font-display text-lg font-bold text-foreground">
+            <div className="min-w-0">
+              <DialogTitle className="font-display text-base sm:text-lg font-bold text-foreground truncate">
                 {title}
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
+              <DialogDescription className="text-xs text-muted-foreground line-clamp-2">
                 {description}
               </DialogDescription>
             </div>

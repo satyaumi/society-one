@@ -418,10 +418,14 @@ public class PublicVisitRequestController {
                 "Online visit request submitted for " + visitor.getFullName() + " → " + destinationStr
         );
 
+        String targetVisitorEmail = (request.email() != null && !request.email().isBlank())
+                ? request.email().trim().toLowerCase()
+                : (visitor.getEmail() != null ? visitor.getEmail().trim().toLowerCase() : null);
+
         // 1. Send Welcome & Confirmation Email to the Online Visitor
-        if (visitor.getEmail() != null && !visitor.getEmail().isBlank()) {
+        if (targetVisitorEmail != null && !targetVisitorEmail.isBlank()) {
             emailService.sendOnlineVisitRegistrationWelcomeEmail(
-                    visitor.getEmail(),
+                    targetVisitorEmail,
                     visitor.getFullName(),
                     recipient.getFullName(),
                     society.getName(),

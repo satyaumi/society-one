@@ -137,7 +137,8 @@ public class EmailService {
                     StandardCharsets.UTF_8.name()
             );
 
-            helper.setFrom(fromEmail, fromName);
+            String smtpSender = (mailUsername != null && !mailUsername.isBlank()) ? mailUsername.trim() : fromEmail;
+            helper.setFrom(smtpSender, fromName);
             helper.setTo(toEmail.trim());
             helper.setSubject(subject);
             helper.setText(textContent, htmlContent);
@@ -478,16 +479,20 @@ public class EmailService {
                             StandardCharsets.UTF_8.name()
                     );
 
-                    helper.setFrom(fromEmail, fromName);
+                    String smtpSender = (mailUsername != null && !mailUsername.isBlank()) ? mailUsername.trim() : fromEmail;
+                    helper.setFrom(smtpSender, fromName);
                     helper.setTo(toEmail.trim());
                     helper.setSubject(subject);
                     helper.setText(text, html);
 
                     mailSender.send(message);
                     log.info("[EmailService] {} activity email successfully dispatched to {} via SMTP", activityType, toEmail);
+                } else {
+                    log.warn("[EmailService] SMTP delivery skipped for {}: mailSender is {} and hasCredentials is {}",
+                            toEmail, mailSender != null ? "available" : "null", hasCredentials);
                 }
             } catch (Exception e) {
-                log.warn("[EmailService] Failed to send {} activity email to {}: {}", activityType, toEmail, e.getMessage());
+                log.warn("[EmailService] Failed to send {} activity email to {}: {}", activityType, toEmail, e.getMessage(), e);
             }
         });
     }

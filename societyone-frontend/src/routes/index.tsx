@@ -203,8 +203,8 @@ function HomePage() {
             </a>
           </nav>
 
-          {/* Header Action Buttons */}
-          <div className="hidden items-center gap-2 sm:flex">
+          {/* Header Action Buttons (Desktop & Tablet) */}
+          <div className="hidden items-center gap-2 md:flex">
             <ShareModal
               triggerVariant="outline"
               triggerSize="sm"
@@ -248,16 +248,24 @@ function HomePage() {
             </Button>
           </div>
 
-          {/* Mobile Menu Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen((prev) => !prev)}
-            className="grid size-10 place-items-center rounded-lg border border-border text-foreground md:hidden"
-            aria-label="Toggle mobile menu"
-            aria-expanded={mobileMenuOpen}
-          >
-            {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-          </button>
+          {/* Mobile Right Controls */}
+          <div className="flex items-center gap-2 md:hidden">
+            <ShareModal
+              triggerVariant="ghost"
+              triggerSize="icon"
+              triggerClassName="size-10 rounded-lg border border-border text-foreground"
+            />
+
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              className="grid size-10 place-items-center rounded-lg border border-border text-foreground hover:bg-accent transition"
+              aria-label="Toggle mobile menu"
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Dropdown Menu */}

@@ -430,10 +430,11 @@ function OnlineVisitPage() {
             </span>
           </Link>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <ShareModal
               triggerVariant="outline"
               triggerSize="sm"
+              triggerClassName="h-9 px-2.5 sm:px-3 text-xs sm:text-sm shrink-0"
               shareText="Schedule an advance online visit on SocietyOne without standing in gate queues:"
             />
             <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex text-muted-foreground hover:text-foreground">
@@ -441,10 +442,10 @@ function OnlineVisitPage() {
                 Instant Visit (At Gate)
               </Link>
             </Button>
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="outline" size="sm" className="h-9 px-2.5 sm:px-3 text-xs sm:text-sm shrink-0">
               <Link to="/">
-                <ArrowLeft className="mr-1.5 size-4" />
-                Back Home
+                <ArrowLeft className="mr-1.5 size-3.5 sm:size-4" />
+                Home
               </Link>
             </Button>
           </div>

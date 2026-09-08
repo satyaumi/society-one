@@ -236,25 +236,25 @@ export function AppShell({ children, title, eyebrow }: { children: ReactNode; ti
               </h1>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-2 sm:gap-3">
             <ShareModal
               triggerVariant="ghost"
               triggerSize="icon"
-              triggerClassName="text-muted-foreground hover:text-foreground hover:bg-accent/60"
+              triggerClassName="size-9 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent/60 flex items-center justify-center shrink-0"
               title="Share SocietyOne"
               description="Share SocietyOne with residents, gate security, visitors, or friends."
             />
             <Button
               variant="ghost"
               size="icon"
-              className="relative text-muted-foreground hover:text-foreground hover:bg-accent/60"
+              className="relative size-9 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent/60 shrink-0"
               aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
               onClick={() => setNotificationsOpen((value) => !value)}
             >
-              <Bell />
-              {unreadCount > 0 && <span className="absolute right-1 top-1 size-2 rounded-full bg-brand-orange" />}
+              <Bell className="size-4" />
+              {unreadCount > 0 && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-brand-orange ring-2 ring-background" />}
             </Button>
-            <div className="hidden h-8 w-px bg-border sm:block" />
+            <div className="hidden h-6 w-px bg-border sm:block" />
             <Link to="/settings" className="hidden items-center gap-2.5 text-right sm:flex hover:opacity-90 transition-opacity">
               <Avatar className="size-7 shrink-0 border border-border shadow-xs">
                 <AvatarImage
