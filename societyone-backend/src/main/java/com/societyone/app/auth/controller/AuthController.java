@@ -89,6 +89,26 @@ public class AuthController {
         );
     }
 
+    @GetMapping("/setup/platform-status")
+    public ApiResponse<Map<String, Boolean>> getPlatformSetupStatus() {
+        boolean available = authService.isFirstPlatformAdminSetupAvailable();
+        return ApiResponse.success(
+                Map.of("available", available),
+                available ? "First platform admin setup is available" : "Platform admin already configured"
+        );
+    }
+
+    @PostMapping("/setup/first-platform-admin")
+    public ApiResponse<AuthResponse> provisionFirstPlatformAdmin(
+            @Valid @RequestBody SignupRequest request
+    ) {
+        AuthResponse response = authService.provisionFirstPlatformAdmin(request);
+        return ApiResponse.success(
+                response,
+                "First platform admin account created successfully"
+        );
+    }
+
     /**
      * Login using email or mobile number.
      */

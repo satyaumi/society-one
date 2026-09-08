@@ -143,13 +143,31 @@ function LoginPage() {
     }
   }
 
+  const isPlatformAdminMode = role === "PLATFORM_ADMIN";
+
   return (
     <AuthLayout
-      eyebrow="Account"
-      title="Log in to SocietyOne"
-      subtitle="Enter your username or email, otherwise your mobile number, to continue to your workspace."
+      eyebrow={isPlatformAdminMode ? "Restricted Operational Area" : "Account"}
+      title={isPlatformAdminMode ? "Platform Management Sign In" : "Log in to SocietyOne"}
+      subtitle={
+        isPlatformAdminMode
+          ? "Restricted access for authorized platform management and super administrators."
+          : "Enter your username or email, otherwise your mobile number, to continue to your workspace."
+      }
     >
-      {setupAvailable && (
+      {isPlatformAdminMode && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-brand-blue/30 bg-blue-50/80 dark:bg-blue-950/40 p-4 text-xs leading-relaxed text-slate-800 dark:text-slate-200">
+          <ShieldPlus className="size-5 text-brand-blue shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-slate-900 dark:text-white">Authorized Management Authentication</p>
+            <p className="mt-0.5 text-slate-600 dark:text-slate-300">
+              Only verified platform administrators with elevated permissions may access the SocietyOne Management Portal.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {setupAvailable && !isPlatformAdminMode && (
         <Link
           to="/setup-admin"
           className="mb-6 flex items-start gap-3 rounded-xl border border-brand-blue/30 bg-info-soft px-4 py-3.5 text-left transition hover:border-brand-blue/60 hover:bg-brand-blue/10"
@@ -250,31 +268,46 @@ function LoginPage() {
         <Button
           type="submit"
           disabled={loading}
-          className="h-12 w-full rounded-lg bg-brand-blue hover:bg-brand-blue/90"
+          className="h-12 w-full rounded-lg bg-brand-blue hover:bg-brand-blue/90 font-semibold"
         >
-          {loading && <Loader2 className="animate-spin" />}
-          {loading ? "Signing in..." : "Log in"}
+          {loading && <Loader2 className="animate-spin mr-2" />}
+          {loading ? "Verifying credentials..." : isPlatformAdminMode ? "Sign In to Management" : "Log in"}
         </Button>
       </form>
 
-      <div className="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        <span className="h-px flex-1 bg-border" />
-        or
-        <span className="h-px flex-1 bg-border" />
-      </div>
+      {!isPlatformAdminMode && (
+        <>
+          <div className="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            or
+            <span className="h-px flex-1 bg-border" />
+          </div>
 
-      <GoogleButton onClick={onGoogle} loading={googleLoading} disabled={loading} />
+          <GoogleButton onClick={onGoogle} loading={googleLoading} disabled={loading} />
 
-      <p className="mt-8 text-center text-sm text-muted-foreground">
-        New to SocietyOne?{" "}
-        <Link
-          to="/signup"
-          search={{ role }}
-          className="font-semibold text-brand-blue hover:underline"
-        >
-          Sign up
-        </Link>
-      </p>
+          <p className="mt-8 text-center text-sm text-muted-foreground">
+            New to SocietyOne?{" "}
+            <Link
+              to="/signup"
+              search={{ role }}
+              className="font-semibold text-brand-blue hover:underline"
+            >
+              Sign up
+            </Link>
+          </p>
+        </>
+      )}
+
+      {isPlatformAdminMode && (
+        <div className="mt-8 pt-4 border-t border-border text-center">
+          <Link
+            to="/"
+            className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← Back to Public Website
+          </Link>
+        </div>
+      )}
     </AuthLayout>
   );
 }

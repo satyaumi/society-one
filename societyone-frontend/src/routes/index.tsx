@@ -6,17 +6,25 @@ import {
   Bell,
   Building2,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Calendar,
   Clock,
+  Compass,
   FileCheck2,
+  FileSearch,
   Globe,
   Home,
+  Layers,
+  LayoutDashboard,
   Lock,
+  LogOut,
   Menu,
+  MoreHorizontal,
   QrCode,
   Shield,
+  ShieldAlert,
   ShieldCheck,
   Smartphone,
   Sparkles,
@@ -28,6 +36,14 @@ import {
 } from "lucide-react";
 import societyOneLogo from "@/assets/societyone-logo.png";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { publicService, notificationService, type PublicSummary } from "@/services";
 import type { Announcement } from "@/types/domain";
 import {
@@ -36,7 +52,14 @@ import {
 } from "@/components/notifications/AnnouncementDetailsModal";
 import { ShareModal } from "@/components/share/ShareModal";
 import { OnlineVisitTrackerModal } from "@/components/visitor/OnlineVisitTrackerModal";
-import { authStore } from "@/lib/auth/auth-store";
+import { WelcomeRolePrompt } from "@/components/landing/WelcomeRolePrompt";
+import {
+  ProtectedFeatureModal,
+  type ProtectedFeatureRole,
+} from "@/components/landing/ProtectedFeatureModal";
+import { RestrictedManagementModal } from "@/components/landing/RestrictedManagementModal";
+import { SocietyCreationTrackerModal } from "@/components/society/SocietyCreationTrackerModal";
+import { authStore, useAuth } from "@/lib/auth/auth-store";
 import { WorkflowDemo } from "@/components/landing/WorkflowDemo";
 
 export const Route = createFileRoute("/")({
@@ -66,11 +89,22 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
   const [summary, setSummary] = useState<PublicSummary | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [publicAnnouncements, setPublicAnnouncements] = useState<Announcement[]>([]);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [currentPublicIndex, setCurrentPublicIndex] = useState(0);
+
+  // Modals state
+  const [protectedModal, setProtectedModal] = useState<{
+    open: boolean;
+    role: ProtectedFeatureRole;
+    title?: string;
+    description?: string;
+  }>({ open: false, role: "RESIDENT" });
+  const [mgmtModalOpen, setMgmtModalOpen] = useState(false);
+  const [societyTrackerOpen, setSocietyTrackerOpen] = useState(false);
 
   const AUTOSLIDE_INTERVAL = 5000;
 
@@ -137,31 +171,68 @@ function HomePage() {
 
   // Card 3: AT SECURITY (preserves existing security auth)
   function handleSecurityClick() {
-    const { isAuthenticated, user } = authStore.getState();
-    if (isAuthenticated && user?.role === "SECURITY") {
+    const { isAuthenticated: authed, user: u } = authStore.getState();
+    if (authed && u?.role === "SECURITY") {
       void navigate({ to: "/security/at-security" });
+    } else if (authed) {
+      setProtectedModal({
+        open: true,
+        role: "SECURITY",
+        title: "Security Gate Access Required",
+        description: "Your current account is not authorized as security staff. Please sign in with an authorized Security account."
+      });
     } else {
-      void navigate({ to: "/login", search: { role: "SECURITY" } });
+      setProtectedModal({
+        open: true,
+        role: "SECURITY",
+        title: "Security Gate Access Required",
+        description: "This feature is for on-duty security staff. Please sign in with an authorized Security account to manage gate passes."
+      });
     }
   }
 
   // Card 4: REGULAR PASSES (preserves existing resident & security pass workflows)
   function handleRegularPassesClick() {
-    const { isAuthenticated, user } = authStore.getState();
-    if (isAuthenticated && user?.role === "RESIDENT") {
+    const { isAuthenticated: authed, user: u } = authStore.getState();
+    if (authed && u?.role === "RESIDENT") {
       void navigate({ to: "/regular-visitors" });
-    } else if (isAuthenticated && user?.role === "SECURITY") {
+    } else if (authed && u?.role === "SECURITY") {
       void navigate({ to: "/security/regular" });
+    } else if (authed) {
+      setProtectedModal({
+        open: true,
+        role: "RESIDENT",
+        title: "Resident Pass Access Required",
+        description: "Please sign in with a resident account to manage recurring domestic staff and delivery passes."
+      });
     } else {
-      void navigate({ to: "/login", search: { role: "RESIDENT" } });
+      setProtectedModal({
+        open: true,
+        role: "RESIDENT",
+        title: "Resident Account Required",
+        description: "Please register or sign in as a resident to create regular visitor and domestic helper passes."
+      });
     }
+  }
+
+  function handleLogout() {
+    authStore.clear();
+    void navigate({ to: "/" });
+  }
+
+  function getDashboardLink() {
+    if (!user) return "/dashboard";
+    if (user.role === "PLATFORM_ADMIN") return "/platform";
+    if (user.role === "SECURITY") return "/security/at-security";
+    return "/dashboard";
   }
 
   return (
     <div className="min-h-screen scroll-smooth overflow-x-hidden bg-background text-foreground">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border/40 bg-background/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+          {/* Brand Logo */}
           <Link
             to="/"
             className="group flex items-center gap-2.5 rounded-xl transition-all duration-200 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-brand-orange focus:ring-offset-2"
@@ -170,7 +241,7 @@ function HomePage() {
             <img
               src={societyOneLogo}
               alt="SocietyOne"
-              className="size-9 rounded-xl object-cover shadow-sm transition-transform duration-300 group-hover:scale-105 sm:size-10"
+              className="size-9 rounded-xl object-cover shadow-sm transition-transform duration-300 group-hover:scale-105 sm:size-9.5"
             />
 
             <span className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
@@ -178,108 +249,223 @@ function HomePage() {
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
+          {/* Desktop Navigation Links */}
           <nav
-            className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex"
+            className="hidden items-center gap-7 text-sm font-medium text-muted-foreground lg:flex"
             aria-label="Main navigation"
           >
             <a
               href="#how-it-works"
-              className="rounded-md transition-all duration-200 hover:-translate-y-0.5 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
+              className="rounded-md transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-brand-blue"
             >
               How it works
             </a>
 
             <a
               href="#features"
-              className="rounded-md transition-all duration-200 hover:-translate-y-0.5 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
+              className="rounded-md transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-brand-blue"
             >
               Features
             </a>
 
             <a
               href="#about"
-              className="rounded-md transition-all duration-200 hover:-translate-y-0.5 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
+              className="rounded-md transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-brand-blue"
             >
               About
             </a>
           </nav>
 
-          {/* Header Action Buttons (Desktop & Tablet) */}
-          <div className="hidden items-center gap-2 md:flex">
-            <OnlineVisitTrackerModal
-              triggerVariant="ghost"
-              triggerSize="sm"
-              triggerClassName="font-medium text-muted-foreground hover:text-foreground"
-            />
+          {/* Desktop & Tablet Action Group */}
+          <div className="hidden items-center gap-2.5 sm:flex">
+            {/* Grouped Visits Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="font-medium text-muted-foreground hover:text-foreground gap-1.5 h-9"
+                >
+                  <Globe className="size-4 text-brand-blue" />
+                  Visits
+                  <ChevronDown className="size-3.5 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 p-1.5 shadow-lg border-border/80">
+                <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1">
+                  Visitor Entry & Passes
+                </DropdownMenuLabel>
+                <DropdownMenuItem asChild>
+                  <Link to="/online-visit" className="flex items-center gap-2.5 cursor-pointer py-2">
+                    <div className="grid size-7 place-items-center rounded-md bg-brand-blue/10 text-brand-blue">
+                      <Globe className="size-3.5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-xs">Online Pre-Registration</p>
+                      <p className="text-[10px] text-muted-foreground">Advance visitor schedule</p>
+                    </div>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/invite" className="flex items-center gap-2.5 cursor-pointer py-2">
+                    <div className="grid size-7 place-items-center rounded-md bg-brand-orange/10 text-brand-orange">
+                      <Zap className="size-3.5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-xs">Instant Gate Pass</p>
+                      <p className="text-[10px] text-muted-foreground">Fast walk-in arrival</p>
+                    </div>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <div className="p-1">
+                  <OnlineVisitTrackerModal
+                    triggerVariant="ghost"
+                    triggerSize="sm"
+                    triggerClassName="w-full justify-start text-xs font-medium text-muted-foreground hover:text-foreground h-8 px-2 gap-2"
+                  />
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-            <ShareModal
-              triggerVariant="outline"
-              triggerSize="sm"
-              triggerClassName="border-border/80 hover:border-brand-blue/40"
-            />
+            {/* Primary Action: Register Society */}
+            {!isAuthenticated ? (
+              <Button
+                asChild
+                variant="default"
+                size="sm"
+                className="bg-brand-blue hover:bg-brand-blue/90 text-white font-medium shadow-xs h-9 px-3.5"
+              >
+                <Link to="/register-society">
+                  <Building2 className="mr-1.5 size-3.5" />
+                  Register Society
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                asChild
+                variant="default"
+                size="sm"
+                className="bg-brand-blue hover:bg-brand-blue/90 text-white font-medium shadow-xs h-9 px-3.5"
+              >
+                <Link to={getDashboardLink()}>
+                  <LayoutDashboard className="mr-1.5 size-3.5" />
+                  Dashboard
+                </Link>
+              </Button>
+            )}
 
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="font-medium text-brand-blue hover:text-brand-blue/90 hover:bg-brand-blue/10"
-            >
-              <Link to="/online-visit">
-                <Globe className="mr-1.5 size-4 text-brand-blue" />
-                Online Visit
-              </Link>
-            </Button>
+            {/* Sign In or Authenticated User Profile */}
+            {!isAuthenticated ? (
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="border-border hover:bg-accent h-9 font-medium"
+              >
+                <Link to="/login" search={{ role: undefined }}>
+                  Sign in
+                  <ArrowRight className="ml-1.5 size-3.5" />
+                </Link>
+              </Button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 h-9 font-medium border-border/80">
+                    <span className="size-2 rounded-full bg-emerald-500" />
+                    <span className="max-w-[100px] truncate">{user?.name || user?.username}</span>
+                    <ChevronDown className="size-3.5 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 p-1.5 shadow-lg border-border/80">
+                  <DropdownMenuLabel className="px-2 py-1.5">
+                    <p className="text-xs font-bold text-foreground truncate">{user?.name || user?.username}</p>
+                    <p className="text-[10px] font-medium text-brand-blue uppercase tracking-wider">{user?.role?.replace("_", " ")}</p>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to={getDashboardLink()} className="flex items-center gap-2 cursor-pointer py-1.5">
+                      <LayoutDashboard className="size-4 text-muted-foreground" />
+                      <span>Dashboard</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  {user?.role === "RESIDENT" && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/regular-visitors" className="flex items-center gap-2 cursor-pointer py-1.5">
+                        <Users className="size-4 text-muted-foreground" />
+                        <span>Regular Passes</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 text-rose-600 focus:text-rose-600 focus:bg-rose-50 cursor-pointer py-1.5"
+                  >
+                    <LogOut className="size-4" />
+                    <span>Sign Out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="font-medium text-muted-foreground hover:text-foreground"
-            >
-              <Link to="/invite">
-                <Zap className="mr-1.5 size-4 text-brand-orange" />
-                Instant Visit
-              </Link>
-            </Button>
-
-            <Button
-              asChild
-              variant="default"
-              size="sm"
-              className="bg-brand-blue hover:bg-brand-blue/90 text-white font-medium shadow-xs"
-            >
-              <Link to="/register-society">
-                <Building2 className="mr-1.5 size-3.5" />
-                Register Society
-              </Link>
-            </Button>
-
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="border-brand-blue/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
-            >
-              <Link to="/login" search={{ role: undefined }}>
-                Sign in
-                <ArrowRight className="ml-1.5 size-3.5" />
-              </Link>
-            </Button>
+            {/* More Menu (Share, Track Society, Restricted Management) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground"
+                  aria-label="More options"
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 p-1.5 shadow-lg border-border/80">
+                <DropdownMenuItem
+                  onClick={() => setSocietyTrackerOpen(true)}
+                  className="flex items-center gap-2.5 cursor-pointer py-2"
+                >
+                  <FileSearch className="size-4 text-brand-blue" />
+                  <div>
+                    <p className="font-semibold text-xs">Track Society Application</p>
+                    <p className="text-[10px] text-muted-foreground">Check onboarding status</p>
+                  </div>
+                </DropdownMenuItem>
+                <div className="p-1">
+                  <ShareModal
+                    triggerVariant="ghost"
+                    triggerSize="sm"
+                    triggerClassName="w-full justify-start text-xs font-semibold text-muted-foreground hover:text-foreground h-8 px-2 gap-2"
+                  />
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setMgmtModalOpen(true)}
+                  className="flex items-center gap-2.5 cursor-pointer py-2 text-slate-600 hover:text-slate-900"
+                >
+                  <Lock className="size-3.5 text-amber-600" />
+                  <div>
+                    <p className="font-semibold text-xs text-amber-700">Platform Management</p>
+                    <p className="text-[10px] text-muted-foreground">Restricted operational access</p>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Mobile Right Controls */}
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-2 sm:hidden">
             <ShareModal
               triggerVariant="ghost"
               triggerSize="icon"
-              triggerClassName="size-10 rounded-lg border border-border text-foreground"
+              triggerClassName="size-9 rounded-lg border border-border text-foreground"
             />
 
             <button
               type="button"
               onClick={() => setMobileMenuOpen((prev) => !prev)}
-              className="grid size-10 place-items-center rounded-lg border border-border text-foreground hover:bg-accent transition"
+              className="grid size-9 place-items-center rounded-lg border border-border text-foreground hover:bg-accent transition"
               aria-label="Toggle mobile menu"
               aria-expanded={mobileMenuOpen}
             >
@@ -288,66 +474,139 @@ function HomePage() {
           </div>
         </div>
 
-        {/* Mobile Dropdown Menu */}
+        {/* Mobile Dropdown Menu Drawer */}
         {mobileMenuOpen && (
-          <div className="border-b border-border bg-background px-4 py-4 space-y-3 md:hidden animate-in slide-in-from-top-2 duration-200">
-            <div className="flex flex-col space-y-2 text-sm font-medium text-muted-foreground">
+          <div className="border-b border-border bg-background px-4 py-4 space-y-4 sm:hidden animate-in slide-in-from-top-2 duration-200 shadow-xl max-h-[85vh] overflow-y-auto">
+            {/* Quick Links */}
+            <div className="flex flex-col space-y-1 text-sm font-medium text-muted-foreground">
               <a
                 href="#how-it-works"
                 onClick={() => setMobileMenuOpen(false)}
-                className="py-1.5 hover:text-foreground"
+                className="py-1.5 hover:text-foreground flex items-center justify-between"
               >
-                How it works
+                <span>How it works</span>
+                <ChevronRight className="size-4 opacity-40" />
               </a>
               <a
                 href="#features"
                 onClick={() => setMobileMenuOpen(false)}
-                className="py-1.5 hover:text-foreground"
+                className="py-1.5 hover:text-foreground flex items-center justify-between"
               >
-                Features
+                <span>Features</span>
+                <ChevronRight className="size-4 opacity-40" />
               </a>
               <a
                 href="#about"
                 onClick={() => setMobileMenuOpen(false)}
-                className="py-1.5 hover:text-foreground"
+                className="py-1.5 hover:text-foreground flex items-center justify-between"
               >
-                About
+                <span>About</span>
+                <ChevronRight className="size-4 opacity-40" />
               </a>
             </div>
 
-            <div className="pt-2 border-t border-border flex flex-col gap-2">
+            {/* Visitor Passes */}
+            <div className="border-t border-border pt-3 space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block px-1">
+                Visitor Passes
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <Button asChild variant="outline" size="sm" className="h-10 justify-start text-xs font-medium">
+                  <Link to="/online-visit" onClick={() => setMobileMenuOpen(false)}>
+                    <Globe className="mr-1.5 size-3.5 text-brand-blue" />
+                    Online Visit
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" size="sm" className="h-10 justify-start text-xs font-medium">
+                  <Link to="/invite" onClick={() => setMobileMenuOpen(false)}>
+                    <Zap className="mr-1.5 size-3.5 text-brand-orange" />
+                    Instant Pass
+                  </Link>
+                </Button>
+              </div>
               <OnlineVisitTrackerModal
                 triggerVariant="outline"
-                triggerClassName="w-full justify-center"
+                triggerSize="sm"
+                triggerClassName="w-full justify-center text-xs h-9"
               />
-              <ShareModal
-                triggerVariant="outline"
-                triggerClassName="w-full justify-center"
-              />
-              <Button asChild className="w-full bg-brand-blue text-white hover:bg-brand-blue/90 justify-center">
+            </div>
+
+            {/* Society Onboarding */}
+            <div className="border-t border-border pt-3 space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block px-1">
+                Society Onboarding
+              </span>
+              <Button asChild className="w-full bg-brand-blue text-white hover:bg-brand-blue/90 justify-center h-10">
                 <Link to="/register-society" onClick={() => setMobileMenuOpen(false)}>
                   <Building2 className="mr-2 size-4" />
-                  Register Your Society (New Onboarding)
+                  Register Your Society
                 </Link>
               </Button>
-              <Button asChild className="w-full bg-emerald-600 text-white hover:bg-emerald-700 justify-center">
-                <Link to="/online-visit" onClick={() => setMobileMenuOpen(false)}>
-                  <Globe className="mr-2 size-4" />
-                  Online Visit (Pre-Schedule Advance Entry)
-                </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setSocietyTrackerOpen(true);
+                }}
+                className="w-full justify-center text-xs h-9"
+              >
+                <FileSearch className="mr-1.5 size-3.5 text-brand-blue" />
+                Track Society Application
               </Button>
-              <Button asChild className="w-full bg-brand-orange text-white hover:bg-brand-orange/90 justify-center">
-                <Link to="/invite" onClick={() => setMobileMenuOpen(false)}>
-                  <Zap className="mr-2 size-4" />
-                  Instant Visit (At Gate / Walk-in)
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="w-full justify-center">
-                <Link to="/login" search={{ role: undefined }} onClick={() => setMobileMenuOpen(false)}>
-                  Sign in to Portal
-                  <ArrowRight className="ml-2 size-4" />
-                </Link>
-              </Button>
+            </div>
+
+            {/* Account & Authentication */}
+            <div className="border-t border-border pt-3 space-y-2">
+              {isAuthenticated ? (
+                <>
+                  <div className="rounded-lg bg-accent/60 p-2.5 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-foreground">{user?.name || user?.username}</p>
+                      <p className="text-[10px] font-medium text-brand-blue uppercase">{user?.role?.replace("_", " ")}</p>
+                    </div>
+                    <Button asChild size="sm" className="bg-brand-blue text-white h-8 text-xs">
+                      <Link to={getDashboardLink()} onClick={() => setMobileMenuOpen(false)}>
+                        Dashboard
+                      </Link>
+                    </Button>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="w-full text-rose-600 hover:bg-rose-50 justify-center text-xs h-9"
+                  >
+                    <LogOut className="mr-1.5 size-3.5" />
+                    Sign Out
+                  </Button>
+                </>
+              ) : (
+                <Button asChild variant="outline" className="w-full justify-center h-10 font-semibold">
+                  <Link to="/login" search={{ role: undefined }} onClick={() => setMobileMenuOpen(false)}>
+                    Sign in to Account
+                    <ArrowRight className="ml-1.5 size-4" />
+                  </Link>
+                </Button>
+              )}
+            </div>
+
+            {/* Subtle Management Entry */}
+            <div className="border-t border-border pt-3 pb-1 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setMgmtModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-800"
+              >
+                <Lock className="size-3 text-amber-600" />
+                Platform Management (Restricted)
+              </button>
             </div>
           </div>
         )}
@@ -900,15 +1159,54 @@ function HomePage() {
           >
             Contact
           </Link>
+
+          {/* Subtle Restricted Platform Management Access in Footer */}
+          <button
+            type="button"
+            onClick={() => setMgmtModalOpen(true)}
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground/70 transition-colors duration-200 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            title="Platform Management Portal (Restricted)"
+          >
+            <ShieldAlert className="size-3 text-muted-foreground/60" />
+            <span>Management</span>
+          </button>
         </span>
       </footer>
 
+      {/* Announcements Modal */}
       {selectedAnnouncement && (
         <AnnouncementDetailsModal
           announcement={selectedAnnouncement}
           onClose={() => setSelectedAnnouncement(null)}
         />
       )}
+
+      {/* 1. First-visit Role Welcome Prompt (Public visitors only) */}
+      <WelcomeRolePrompt
+        onRegisterSocietyClick={() => navigate({ to: "/register-society" })}
+        onJoinResidentClick={() => navigate({ to: "/signup", search: { role: undefined } })}
+      />
+
+      {/* 2. Public User Protected Feature Explanatory Modal */}
+      <ProtectedFeatureModal
+        open={protectedModal.open}
+        onClose={() => setProtectedModal((prev) => ({ ...prev, open: false }))}
+        requiredRole={protectedModal.role}
+        featureTitle={protectedModal.title}
+        featureDescription={protectedModal.description}
+      />
+
+      {/* 3. Restricted Management Entry Confirmation Modal */}
+      <RestrictedManagementModal
+        open={mgmtModalOpen}
+        onClose={() => setMgmtModalOpen(false)}
+      />
+
+      {/* 4. Society Creation Application Tracker Modal */}
+      <SocietyCreationTrackerModal
+        open={societyTrackerOpen}
+        onClose={() => setSocietyTrackerOpen(false)}
+      />
     </div>
   );
 }

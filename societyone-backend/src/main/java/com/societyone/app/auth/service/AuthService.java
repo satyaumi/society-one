@@ -246,7 +246,79 @@ public class AuthService {
         );
     }
 
+    // -------------------------- First Platform-Admin bootstrap --------------------------
+
+    public boolean isFirstPlatformAdminSetupAvailable() {
+        return userRepository.countByRole(Role.PLATFORM_ADMIN) == 0L;
+    }
+
+    public AuthResponse provisionFirstPlatformAdmin(SignupRequest request) {
+        if (!isFirstPlatformAdminSetupAvailable()) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "First platform admin setup is not available: a platform admin already exists"
+            );
+        }
+
+        String username = request.username().trim();
+        String email = normalize(request.email());
+        String mobile = normalizeMobile(request.mobileNumber());
+
+        if (email == null && mobile == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "At least one of email or mobile number is required"
+            );
+        }
+
+        if (!passwordMeetsPolicy(request.password())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Password does not meet requirements"
+            );
+        }
+
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Username is already registered"
+            );
+        }
+
+        if (email != null && userRepository.existsByEmailIgnoreCase(email)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Email is already registered"
+            );
+        }
+
+        if (mobile != null && userRepository.existsByMobileNumber(mobile)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Mobile number is already registered"
+            );
+        }
+
+        User saved = createUser(request, Role.PLATFORM_ADMIN, AccountStatus.ACTIVE);
+
+        if (saved.getEmail() != null && !saved.getEmail().isBlank()) {
+            emailService.sendWelcomeEmail(saved.getEmail(), saved.getFullName(), saved.getUsername(), saved.getRole().name());
+        }
+
+        String token = jwtService.generateToken(
+                saved.getId(),
+                saved.getUsername(),
+                saved.getRole().name()
+        );
+
+        return new AuthResponse(
+                token,
+                SafeUserResponse.from(saved)
+        );
+    }
+
     // -------------------------- Shared user factory --------------------------
+
 
     /**
      * Shared User factory used by both public signup and first-admin provisioning.
