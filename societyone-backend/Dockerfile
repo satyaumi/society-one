@@ -1,11 +1,11 @@
 # ==============================================================================
-# Build Stage
+# Build Stage (Backend Directory Context)
 # ==============================================================================
 FROM maven:3.9.9-eclipse-temurin-21 AS builder
 
 WORKDIR /workspace
 
-ENV MAVEN_OPTS="-Xmx768m -XX:+TieredCompilation -XX:TieredStopAtLevel=1"
+ENV MAVEN_OPTS="-Xmx400m -XX:+TieredCompilation -XX:TieredStopAtLevel=1"
 
 COPY pom.xml ./
 COPY src ./src
