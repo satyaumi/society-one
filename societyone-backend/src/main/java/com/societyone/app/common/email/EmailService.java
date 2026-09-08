@@ -280,6 +280,146 @@ public class EmailService {
         );
     }
 
+    /**
+     * Send a welcome / confirmation email to the online visitor upon registration.
+     */
+    public void sendOnlineVisitRegistrationWelcomeEmail(
+            String visitorEmail,
+            String visitorName,
+            String hostName,
+            String societyName,
+            String destination,
+            String expectedDate,
+            String expectedTime,
+            String purpose
+    ) {
+        String displayName = (visitorName != null && !visitorName.isBlank()) ? visitorName.trim() : "Visitor";
+        String message = "Welcome to SocietyOne! Your online visit request for " + societyName + " visiting " + hostName
+                + " (" + destination + ") has been successfully registered."
+                + "<br><br><strong>Visit Summary:</strong>"
+                + "<br>• <strong>Scheduled Date & Time:</strong> " + expectedDate + " at " + expectedTime
+                + "<br>• <strong>Purpose:</strong> " + (purpose != null ? purpose : "Personal Visit")
+                + "<br>• <strong>Status:</strong> Pending Host Approval"
+                + "<br><br>Your host (" + hostName + ") has been notified to review your entry request. You will receive an email update as soon as they approve or decline your visit.";
+
+        sendActivityEmailAsync(
+                visitorEmail,
+                "SocietyOne - Online Visit Registration Submitted (" + societyName + ")",
+                "Welcome to SocietyOne",
+                "REGISTRATION RECEIVED",
+                "#2563eb",
+                displayName,
+                message,
+                "Online Visitor Registration",
+                "Guest Visitor",
+                visitorName,
+                "Upon arrival at the society gate, please have your registered mobile number or visit details ready for swift verification."
+        );
+    }
+
+    /**
+     * Send an email notification to the host (Resident / Admin) when an online visitor submits a request.
+     */
+    public void sendOnlineVisitHostNotificationEmail(
+            String hostEmail,
+            String hostName,
+            String visitorName,
+            String visitorMobile,
+            String visitorEmail,
+            String societyName,
+            String destination,
+            String expectedDate,
+            String expectedTime,
+            String purpose,
+            String notes,
+            Long requestId
+    ) {
+        String displayName = (hostName != null && !hostName.isBlank()) ? hostName.trim() : "Host";
+        String message = "You have received a new online visitor request for " + societyName + " (" + destination + ")."
+                + "<br><br><strong>Visitor Information:</strong>"
+                + "<br>• <strong>Visitor Name:</strong> " + visitorName
+                + "<br>• <strong>Mobile Number:</strong> " + visitorMobile
+                + (visitorEmail != null && !visitorEmail.isBlank() ? "<br>• <strong>Email:</strong> " + visitorEmail : "")
+                + "<br>• <strong>Expected Arrival:</strong> " + expectedDate + " at " + expectedTime
+                + "<br>• <strong>Purpose:</strong> " + (purpose != null ? purpose : "Personal Visit")
+                + (notes != null && !notes.isBlank() ? "<br>• <strong>Notes:</strong> " + notes : "")
+                + "<br><br>Please sign in to your SocietyOne dashboard to approve or decline this entry request.";
+
+        sendActivityEmailAsync(
+                hostEmail,
+                "SocietyOne - New Visitor Request from " + visitorName,
+                "New Visitor Request",
+                "APPROVAL REQUIRED",
+                "#f59e0b",
+                displayName,
+                message,
+                "Online Visit Request",
+                "Host / Resident",
+                hostName,
+                "You can review, approve, or reject this request at any time from your SocietyOne dashboard or mobile portal."
+        );
+    }
+
+    /**
+     * Send an email notification to the online visitor when their request is approved or rejected by the host.
+     */
+    public void sendOnlineVisitStatusUpdateToVisitorEmail(
+            String visitorEmail,
+            String visitorName,
+            String hostName,
+            String societyName,
+            String destination,
+            String expectedDate,
+            String expectedTime,
+            boolean approved
+    ) {
+        String displayName = (visitorName != null && !visitorName.isBlank()) ? visitorName.trim() : "Visitor";
+
+        if (approved) {
+            String message = "Great news! <strong>" + hostName + "</strong> has <strong>APPROVED</strong> your visit request to "
+                    + societyName + " (" + destination + ")."
+                    + "<br><br><strong>Confirmed Visit Details:</strong>"
+                    + "<br>• <strong>Host:</strong> " + hostName
+                    + "<br>• <strong>Location:</strong> " + societyName + " — " + destination
+                    + "<br>• <strong>Scheduled Time:</strong> " + expectedDate + " at " + expectedTime
+                    + "<br>• <strong>Status:</strong> Approved for Entry"
+                    + "<br><br>Your entry authorization is active. When you arrive at the security gate, please provide your mobile number to the gate security officer for instant check-in.";
+
+            sendActivityEmailAsync(
+                    visitorEmail,
+                    "SocietyOne - Visit Request Approved by " + hostName + "!",
+                    "Visit Request Approved",
+                    "ENTRY APPROVED",
+                    "#10b981",
+                    displayName,
+                    message,
+                    "Visit Approval Notification",
+                    "Approved Visitor",
+                    visitorName,
+                    "Please arrive on time according to your approved visit slot. Show this confirmation if requested by gate security."
+            );
+        } else {
+            String message = "Your visit request to <strong>" + hostName + "</strong> at " + societyName + " (" + destination + ") has been <strong>DECLINED</strong> for the requested slot."
+                    + "<br><br>• <strong>Scheduled Time:</strong> " + expectedDate + " at " + expectedTime
+                    + "<br>• <strong>Status:</strong> Declined"
+                    + "<br><br>Entry cannot be permitted at this time. If you have questions or wish to reschedule, please contact " + hostName + " directly.";
+
+            sendActivityEmailAsync(
+                    visitorEmail,
+                    "SocietyOne - Visit Request Update from " + hostName,
+                    "Visit Request Declined",
+                    "REQUEST DECLINED",
+                    "#ef4444",
+                    displayName,
+                    message,
+                    "Visit Status Notification",
+                    "Visitor",
+                    visitorName,
+                    "If you believe this is a mistake, please reach out to your host to submit a new visit request."
+            );
+        }
+    }
+
     private void sendActivityEmailAsync(
             String toEmail,
             String subject,

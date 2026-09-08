@@ -28,6 +28,9 @@ public class Visitor {
     @Column(name = "photo_url", length = 500)
     private String photoUrl;
 
+    @Column(name = "email", length = 255)
+    private String email;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -88,6 +91,14 @@ public class Visitor {
 
     public void setPhotoUrl(String photoUrl) {
         this.photoUrl = photoUrl;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public OffsetDateTime getCreatedAt() {

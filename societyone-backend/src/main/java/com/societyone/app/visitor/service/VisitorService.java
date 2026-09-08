@@ -60,6 +60,7 @@ public class VisitorService {
     private final UserRepository userRepository;
     private final ResidentProfileRepository residentProfileRepository;
     private final SecurityStaffProfileRepository securityStaffProfileRepository;
+    private final com.societyone.app.common.email.EmailService emailService;
 
     public VisitorService(
             VisitorRepository visitorRepository,
@@ -68,7 +69,8 @@ public class VisitorService {
             FlatRepository flatRepository,
             UserRepository userRepository,
             ResidentProfileRepository residentProfileRepository,
-            SecurityStaffProfileRepository securityStaffProfileRepository
+            SecurityStaffProfileRepository securityStaffProfileRepository,
+            com.societyone.app.common.email.EmailService emailService
     ) {
         this.visitorRepository = visitorRepository;
         this.visitRequestRepository = visitRequestRepository;
@@ -76,8 +78,8 @@ public class VisitorService {
         this.flatRepository = flatRepository;
         this.userRepository = userRepository;
         this.residentProfileRepository = residentProfileRepository;
-        this.securityStaffProfileRepository =
-                securityStaffProfileRepository;
+        this.securityStaffProfileRepository = securityStaffProfileRepository;
+        this.emailService = emailService;
     }
 
     // ============================================================
@@ -430,9 +432,24 @@ public class VisitorService {
                 VisitRequestStatus.APPROVED_BY_RESIDENT
         );
 
-        return toVisitRequestResponse(
-                visitRequestRepository.save(request)
-        );
+        VisitRequest saved = visitRequestRepository.save(request);
+
+        // Notify online visitor via email if email was provided during online registration
+        if (saved.getVisitor() != null && saved.getVisitor().getEmail() != null && !saved.getVisitor().getEmail().isBlank()) {
+            String dest = saved.getFlat() != null ? "Flat " + saved.getFlat().getNumber() : "Society Management / Office";
+            emailService.sendOnlineVisitStatusUpdateToVisitorEmail(
+                    saved.getVisitor().getEmail(),
+                    saved.getVisitor().getFullName(),
+                    resident.getFullName(),
+                    saved.getSociety().getName(),
+                    dest,
+                    saved.getExpectedDate().toString(),
+                    saved.getExpectedTime() != null ? saved.getExpectedTime().toString() : "Scheduled Time",
+                    true
+            );
+        }
+
+        return toVisitRequestResponse(saved);
     }
 
     // ============================================================
@@ -475,9 +492,24 @@ public class VisitorService {
                 VisitStatus.CANCELLED
         );
 
-        return toVisitRequestResponse(
-                visitRequestRepository.save(request)
-        );
+        VisitRequest saved = visitRequestRepository.save(request);
+
+        // Notify online visitor via email if email was provided during online registration
+        if (saved.getVisitor() != null && saved.getVisitor().getEmail() != null && !saved.getVisitor().getEmail().isBlank()) {
+            String dest = saved.getFlat() != null ? "Flat " + saved.getFlat().getNumber() : "Society Management / Office";
+            emailService.sendOnlineVisitStatusUpdateToVisitorEmail(
+                    saved.getVisitor().getEmail(),
+                    saved.getVisitor().getFullName(),
+                    resident.getFullName(),
+                    saved.getSociety().getName(),
+                    dest,
+                    saved.getExpectedDate().toString(),
+                    saved.getExpectedTime() != null ? saved.getExpectedTime().toString() : "Scheduled Time",
+                    false
+            );
+        }
+
+        return toVisitRequestResponse(saved);
     }
 
     // ============================================================

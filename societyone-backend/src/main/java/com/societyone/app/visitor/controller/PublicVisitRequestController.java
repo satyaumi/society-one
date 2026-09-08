@@ -53,6 +53,7 @@ public class PublicVisitRequestController {
     private final NotificationService notificationService;
     private final AuditService auditService;
     private final VisitorService visitorService;
+    private final com.societyone.app.common.email.EmailService emailService;
 
     public PublicVisitRequestController(
             SocietyRepository societyRepository,
@@ -65,7 +66,8 @@ public class PublicVisitRequestController {
             VisitRequestRepository visitRequestRepository,
             NotificationService notificationService,
             AuditService auditService,
-            VisitorService visitorService
+            VisitorService visitorService,
+            com.societyone.app.common.email.EmailService emailService
     ) {
         this.societyRepository = societyRepository;
         this.buildingRepository = buildingRepository;
@@ -78,6 +80,7 @@ public class PublicVisitRequestController {
         this.notificationService = notificationService;
         this.auditService = auditService;
         this.visitorService = visitorService;
+        this.emailService = emailService;
     }
 
     @GetMapping("/societies/structure")
@@ -351,6 +354,9 @@ public class PublicVisitRequestController {
                     v.setFullName(request.fullName().trim());
                     v.setMobileNumber(mobile);
                     v.setVisitorType(request.visitorType() != null ? request.visitorType() : VisitorType.GUEST);
+                    if (request.email() != null && !request.email().isBlank()) {
+                        v.setEmail(request.email().trim().toLowerCase());
+                    }
                     if (request.vehicleNumber() != null && !request.vehicleNumber().isBlank()) {
                         v.setVehicleNumber(request.vehicleNumber().trim().toUpperCase());
                     }
@@ -360,9 +366,17 @@ public class PublicVisitRequestController {
                     return visitorRepository.saveAndFlush(v);
                 });
 
+        boolean visitorUpdated = false;
+        if (request.email() != null && !request.email().isBlank()) {
+            visitor.setEmail(request.email().trim().toLowerCase());
+            visitorUpdated = true;
+        }
         if (request.photoUrl() != null && !request.photoUrl().isBlank()
                 && (visitor.getPhotoUrl() == null || visitor.getPhotoUrl().isBlank())) {
             visitor.setPhotoUrl(request.photoUrl().trim());
+            visitorUpdated = true;
+        }
+        if (visitorUpdated) {
             visitor = visitorRepository.saveAndFlush(visitor);
         }
 
@@ -384,7 +398,7 @@ public class PublicVisitRequestController {
 
         VisitRequest saved = visitRequestRepository.saveAndFlush(vr);
 
-        String destinationStr = targetFlat != null ? "flat " + targetFlat.getNumber() : "Society Office / Admin";
+        String destinationStr = targetFlat != null ? "Flat " + targetFlat.getNumber() : "Society Management / Office";
 
         notificationService.send(
                 recipient.getId(),
@@ -403,6 +417,38 @@ public class PublicVisitRequestController {
                 saved.getId(),
                 "Online visit request submitted for " + visitor.getFullName() + " → " + destinationStr
         );
+
+        // 1. Send Welcome & Confirmation Email to the Online Visitor
+        if (visitor.getEmail() != null && !visitor.getEmail().isBlank()) {
+            emailService.sendOnlineVisitRegistrationWelcomeEmail(
+                    visitor.getEmail(),
+                    visitor.getFullName(),
+                    recipient.getFullName(),
+                    society.getName(),
+                    destinationStr,
+                    saved.getExpectedDate().toString(),
+                    saved.getExpectedTime() != null ? saved.getExpectedTime().toString() : "Scheduled Time",
+                    saved.getPurpose()
+            );
+        }
+
+        // 2. Send Action-Required Notification Email to the Host (Resident / Admin)
+        if (recipient.getEmail() != null && !recipient.getEmail().isBlank()) {
+            emailService.sendOnlineVisitHostNotificationEmail(
+                    recipient.getEmail(),
+                    recipient.getFullName(),
+                    visitor.getFullName(),
+                    visitor.getMobileNumber(),
+                    visitor.getEmail(),
+                    society.getName(),
+                    destinationStr,
+                    saved.getExpectedDate().toString(),
+                    saved.getExpectedTime() != null ? saved.getExpectedTime().toString() : "Scheduled Time",
+                    saved.getPurpose(),
+                    request.notes(),
+                    saved.getId()
+            );
+        }
 
         return ApiResponse.success(toResponse(saved));
     }

@@ -683,7 +683,7 @@ function OnlineVisitPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="visitorEmail" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Email Address <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                  Email Address <span className="text-xs text-brand-blue font-normal">(For Welcome & Approval Alerts)</span>
                 </Label>
                 <Input
                   id="visitorEmail"
@@ -692,6 +692,9 @@ function OnlineVisitPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Receive an instant registration welcome email and notification when approved.
+                </p>
               </div>
 
               <div className="space-y-1.5">
