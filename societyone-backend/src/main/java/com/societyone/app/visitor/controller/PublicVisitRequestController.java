@@ -422,7 +422,7 @@ public class PublicVisitRequestController {
                 ? request.email().trim().toLowerCase()
                 : (visitor.getEmail() != null ? visitor.getEmail().trim().toLowerCase() : null);
 
-        // 1. Send Welcome & Confirmation Email to the Online Visitor
+        // Send Welcome & Confirmation Email strictly to the Online Visitor's filled email address
         if (targetVisitorEmail != null && !targetVisitorEmail.isBlank()) {
             emailService.sendOnlineVisitRegistrationWelcomeEmail(
                     targetVisitorEmail,
@@ -433,24 +433,6 @@ public class PublicVisitRequestController {
                     saved.getExpectedDate().toString(),
                     saved.getExpectedTime() != null ? saved.getExpectedTime().toString() : "Scheduled Time",
                     saved.getPurpose()
-            );
-        }
-
-        // 2. Send Action-Required Notification Email to the Host (Resident / Admin)
-        if (recipient.getEmail() != null && !recipient.getEmail().isBlank()) {
-            emailService.sendOnlineVisitHostNotificationEmail(
-                    recipient.getEmail(),
-                    recipient.getFullName(),
-                    visitor.getFullName(),
-                    visitor.getMobileNumber(),
-                    visitor.getEmail(),
-                    society.getName(),
-                    destinationStr,
-                    saved.getExpectedDate().toString(),
-                    saved.getExpectedTime() != null ? saved.getExpectedTime().toString() : "Scheduled Time",
-                    saved.getPurpose(),
-                    request.notes(),
-                    saved.getId()
             );
         }
 
