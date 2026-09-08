@@ -142,13 +142,14 @@ public class SecurityConfig {
                                 "/api/auth/resend-otp",
                                 "/api/auth/setup/**"
                         ).permitAll()
+                        .requestMatchers("/api/platform/**").hasRole("PLATFORM_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/societies", "/api/societies/*").authenticated()
                         .requestMatchers(
                                 "/api/societies/**",
                                 "/api/buildings/**",
                                 "/api/floors/**",
                                 "/api/flats/**"
-                        ).hasRole("ADMIN")
+                        ).hasAnyRole("ADMIN", "PLATFORM_ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 )

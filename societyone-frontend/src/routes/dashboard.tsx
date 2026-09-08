@@ -145,6 +145,11 @@ function DashboardPage() {
       intro: "Monitor residential units, personnel, and visitor activity.",
       eyebrow: "Admin dashboard",
     },
+    PLATFORM_ADMIN: {
+      title: "Platform Management Portal",
+      intro: "Oversee societies, review onboarding requests, and manage platform governance.",
+      eyebrow: "Platform Management",
+    },
   };
 
   const insideCount = requests.filter((r) => r.visitStatus === "CHECKED_IN").length;
@@ -154,6 +159,22 @@ function DashboardPage() {
       r.requestStatus === "PENDING_RESIDENT" ||
       r.requestStatus === "PENDING_SECURITY",
   ).length;
+
+  if (role === "PLATFORM_ADMIN") {
+    return (
+      <AppShell title="Platform Management" eyebrow="Main Admin">
+        <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-4">
+          <h3 className="text-xl font-bold font-display">Redirecting to Platform Management...</h3>
+          <p className="text-sm text-muted-foreground">
+            You are logged in with Level 1 Platform Management privileges.
+          </p>
+          <Link to="/platform">
+            <Button className="mt-2">Go to Platform Management Portal</Button>
+          </Link>
+        </div>
+      </AppShell>
+    );
+  }
 
   if (role === "ADMIN") {
     return (

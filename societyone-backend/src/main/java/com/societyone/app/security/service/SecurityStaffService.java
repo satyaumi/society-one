@@ -164,12 +164,16 @@ public class SecurityStaffService {
     // ---- helpers ----
 
     private static void requireAdmin(User actor) {
-        if (actor.getRole() != Role.ADMIN) {
+        if (actor.getRole() != Role.ADMIN && actor.getRole() != Role.PLATFORM_ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "FORBIDDEN");
         }
     }
 
     private Society requireAdminSociety(User admin) {
+        if (admin.getRole() == Role.PLATFORM_ADMIN) {
+            return societyRepository.findAll().stream().findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No society found"));
+        }
         return societyRepository.findByOwnerOrderByNameAsc(admin)
                 .stream()
                 .findFirst()

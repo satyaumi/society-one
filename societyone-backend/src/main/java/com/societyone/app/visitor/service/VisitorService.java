@@ -983,10 +983,14 @@ public class VisitorService {
     private Society getAdminSociety(
             User admin
     ) {
-        requireRole(
-                admin,
-                Role.ADMIN
-        );
+        if (admin.getRole() != Role.ADMIN && admin.getRole() != Role.PLATFORM_ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "FORBIDDEN");
+        }
+
+        if (admin.getRole() == Role.PLATFORM_ADMIN) {
+            return societyRepository.findAll().stream().findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No society found"));
+        }
 
         return societyRepository
                 .findByOwnerOrderByNameAsc(admin)

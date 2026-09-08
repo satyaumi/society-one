@@ -30,4 +30,6 @@ public interface FlatRepository extends JpaRepository<Flat, Long> {
     List<Flat> findByBuildingIdOrderByNumberAsc(Long buildingId);
 
     List<Flat> findBySocietyIdOrderByNumberAsc(Long societyId);
+
+    long countBySocietyId(Long societyId);
 }

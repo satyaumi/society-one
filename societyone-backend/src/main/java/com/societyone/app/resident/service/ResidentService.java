@@ -694,7 +694,7 @@ public class ResidentService {
     // ---- helpers ----
 
     private static void requireAdmin(User actor) {
-        if (actor.getRole() != Role.ADMIN) {
+        if (actor.getRole() != Role.ADMIN && actor.getRole() != Role.PLATFORM_ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "FORBIDDEN");
         }
     }

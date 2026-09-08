@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Bell,
+  Building2,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -244,6 +245,18 @@ function HomePage() {
 
             <Button
               asChild
+              variant="default"
+              size="sm"
+              className="bg-brand-blue hover:bg-brand-blue/90 text-white font-medium shadow-xs"
+            >
+              <Link to="/register-society">
+                <Building2 className="mr-1.5 size-3.5" />
+                Register Society
+              </Link>
+            </Button>
+
+            <Button
+              asChild
               variant="outline"
               size="sm"
               className="border-brand-blue/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
@@ -312,6 +325,12 @@ function HomePage() {
                 triggerClassName="w-full justify-center"
               />
               <Button asChild className="w-full bg-brand-blue text-white hover:bg-brand-blue/90 justify-center">
+                <Link to="/register-society" onClick={() => setMobileMenuOpen(false)}>
+                  <Building2 className="mr-2 size-4" />
+                  Register Your Society (New Onboarding)
+                </Link>
+              </Button>
+              <Button asChild className="w-full bg-emerald-600 text-white hover:bg-emerald-700 justify-center">
                 <Link to="/online-visit" onClick={() => setMobileMenuOpen(false)}>
                   <Globe className="mr-2 size-4" />
                   Online Visit (Pre-Schedule Advance Entry)

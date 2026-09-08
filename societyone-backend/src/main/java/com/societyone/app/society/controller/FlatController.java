@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/flats")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
 public class FlatController {
 
     private final SocietyStructureService societyStructureService;

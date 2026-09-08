@@ -28,6 +28,12 @@ import type {
   EligibleRecipient,
   OnlineVisitInput,
   PublicSociety,
+  SocietyCreationRequest,
+  SocietyCreationSubmitInput,
+  PlatformKPIs,
+  PlatformSocietyDirectoryItem,
+  AdminHandoverInput,
+  ReviewActionInput,
 } from "@/types/domain";
 import type { SocietyCommandCenterResponse } from "@/types/command-center";
 
@@ -2082,4 +2088,157 @@ export const dashboardService: DashboardService = {
     return await withReadableError(apiFetch<SocietyCommandCenterResponse>(path));
   },
 };
+
+// =============================================================================
+// Society Creation Request Service (Public & Platform Management)
+// =============================================================================
+
+export interface SocietyRequestService {
+  submit(data: SocietyCreationSubmitInput, document?: File): Promise<SocietyCreationRequest>;
+  track(query: string): Promise<SocietyCreationRequest[]>;
+  list(status?: string): Promise<SocietyCreationRequest[]>;
+  get(id: number): Promise<SocietyCreationRequest>;
+  markUnderReview(id: number, notes?: string): Promise<SocietyCreationRequest>;
+  requestChanges(id: number, notes: string): Promise<SocietyCreationRequest>;
+  reject(id: number, reason: string): Promise<SocietyCreationRequest>;
+  approveAndCreate(id: number, action?: ReviewActionInput): Promise<SocietyCreationRequest>;
+  handoverAdmin(societyId: number, input: AdminHandoverInput): Promise<void>;
+}
+
+export const societyRequestService: SocietyRequestService = {
+  async submit(data, document) {
+    if (document) {
+      const formData = new FormData();
+      formData.append(
+        "data",
+        new Blob([JSON.stringify(data)], { type: "application/json" }),
+      );
+      formData.append("document", document);
+      return await withReadableError(
+        apiFetch<SocietyCreationRequest>("/public/society-requests", {
+          method: "POST",
+          body: formData,
+        }),
+      );
+    }
+
+    return await withReadableError(
+      apiFetch<SocietyCreationRequest>("/public/society-requests", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    );
+  },
+
+  async track(query) {
+    const params = new URLSearchParams();
+    params.set("query", query);
+    return await withReadableError(
+      apiFetch<SocietyCreationRequest[]>(
+        `/public/society-requests/track?${params.toString()}`,
+      ),
+    );
+  },
+
+  async list(status) {
+    const params = new URLSearchParams();
+    if (status && status !== "ALL") {
+      params.set("status", status);
+    }
+    const qs = params.toString();
+    return await withReadableError(
+      apiFetch<SocietyCreationRequest[]>(
+        `/platform/society-requests${qs ? `?${qs}` : ""}`,
+      ),
+    );
+  },
+
+  async get(id) {
+    return await withReadableError(
+      apiFetch<SocietyCreationRequest>(`/platform/society-requests/${id}`),
+    );
+  },
+
+  async markUnderReview(id, notes) {
+    return await withReadableError(
+      apiFetch<SocietyCreationRequest>(`/platform/society-requests/${id}/review`, {
+        method: "POST",
+        body: JSON.stringify({ notes }),
+      }),
+    );
+  },
+
+  async requestChanges(id, notes) {
+    return await withReadableError(
+      apiFetch<SocietyCreationRequest>(
+        `/platform/society-requests/${id}/request-changes`,
+        {
+          method: "POST",
+          body: JSON.stringify({ notes }),
+        },
+      ),
+    );
+  },
+
+  async reject(id, reason) {
+    return await withReadableError(
+      apiFetch<SocietyCreationRequest>(`/platform/society-requests/${id}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      }),
+    );
+  },
+
+  async approveAndCreate(id, action) {
+    return await withReadableError(
+      apiFetch<SocietyCreationRequest>(
+        `/platform/society-requests/${id}/approve-and-create`,
+        {
+          method: "POST",
+          body: JSON.stringify(action || {}),
+        },
+      ),
+    );
+  },
+
+  async handoverAdmin(societyId, input) {
+    await withReadableError(
+      apiFetch<void>(`/platform/societies/${societyId}/handover`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    );
+  },
+};
+
+// =============================================================================
+// Platform Management Service (Level 1 Platform Management)
+// =============================================================================
+
+export interface PlatformService {
+  getKpis(): Promise<PlatformKPIs>;
+  getSocieties(): Promise<PlatformSocietyDirectoryItem[]>;
+  getAudit(limit?: number): Promise<AuditEvent[]>;
+}
+
+export const platformService: PlatformService = {
+  async getKpis() {
+    return await withReadableError(
+      apiFetch<PlatformKPIs>("/platform/dashboard/kpis"),
+    );
+  },
+
+  async getSocieties() {
+    return await withReadableError(
+      apiFetch<PlatformSocietyDirectoryItem[]>("/platform/societies"),
+    );
+  },
+
+  async getAudit(limit = 50) {
+    return await withReadableError(
+      apiFetch<AuditEvent[]>(`/platform/audit?limit=${limit}`),
+    );
+  },
+};
+
 

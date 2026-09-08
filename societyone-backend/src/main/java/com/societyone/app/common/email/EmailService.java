@@ -152,31 +152,14 @@ public class EmailService {
             );
         }
 
-        } catch (MessagingException | UnsupportedEncodingException e) {
-            log.error("[EmailService] Failed to create MIME message for {}: {}", toEmail, e.getMessage(), e);
-            if (devFallbackEnabled) {
-                log.warn("[EmailService] MIME creation failed. [DEV OTP FALLBACK] To: {} | OTP: {}", toEmail, otp);
-                return;
-            }
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to prepare verification email");
-        } catch (MailException e) {
-            String msg = e.getMessage() != null ? e.getMessage() : "";
-            log.error("[EmailService] SMTP transmission failed for {}: {}", toEmail, msg);
-            log.warn("""
-                    ========================================================================================
-                    [EmailService - DEV OTP FALLBACK]
-                    Real SMTP delivery failed.
-                    Recipient: {}
-                    OTP Code:  {} (valid for {} minutes)
-                    ========================================================================================
-                    """, toEmail, otp, validMinutes);
-
-            if (devFallbackEnabled) {
-                log.info("[EmailService] devFallbackEnabled=true: Allowing OTP verification flow to proceed.");
-                return;
-            }
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unable to send verification email: " + e.getMessage());
+        if (devFallbackEnabled) {
+            log.warn("[EmailService] Real email transmission skipped/failed. [DEV OTP FALLBACK] To: {} | OTP: {}", toEmail, otp);
+            return;
         }
+        throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Email service is not configured. Please configure SMTP credentials to send real emails."
+        );
     }
 
     /**
@@ -365,6 +348,39 @@ public class EmailService {
                 hostName,
                 "You can review, approve, or reject this request at any time from your SocietyOne dashboard or mobile portal."
         );
+    }
+
+    /**
+     * Send general notification email with formatted template.
+     */
+    public void sendGeneralNotificationEmail(
+            String toEmail,
+            String recipientName,
+            String subject,
+            String badgeText,
+            String badgeColor,
+            String messageHtml,
+            String detailLabel,
+            String detailValue
+    ) {
+        String displayName = (recipientName != null && !recipientName.isBlank()) ? recipientName.trim() : "Member";
+        sendActivityEmailAsync(
+                toEmail,
+                subject,
+                "SocietyOne Platform",
+                badgeText != null ? badgeText : "NOTIFICATION",
+                badgeColor != null ? badgeColor : "#2563eb",
+                displayName,
+                messageHtml,
+                "Platform Notification",
+                detailLabel != null ? detailLabel : "SocietyOne",
+                detailValue != null ? detailValue : "Platform Management",
+                "If you have questions regarding this notification, please contact platform administration."
+        );
+    }
+
+    public void sendNotificationEmail(String toEmail, String recipientName, String subject, String messageHtml) {
+        sendGeneralNotificationEmail(toEmail, recipientName, subject, "NOTIFICATION", "#2563eb", messageHtml, "SocietyOne", "Platform Update");
     }
 
     /**

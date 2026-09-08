@@ -19,7 +19,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/floors")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
 public class FloorController {
 
     private final SocietyStructureService societyStructureService;

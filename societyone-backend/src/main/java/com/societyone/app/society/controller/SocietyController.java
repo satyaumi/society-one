@@ -45,7 +45,7 @@ public class SocietyController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<SocietyResponse> create(
             Authentication authentication,
             @Valid @RequestBody SocietyRequest request
@@ -68,7 +68,7 @@ public class SocietyController {
     }
 
     @PutMapping("/{societyId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<SocietyResponse> update(
             Authentication authentication,
             @PathVariable Long societyId,
@@ -92,7 +92,7 @@ public class SocietyController {
     }
 
     @PostMapping("/{societyId}/buildings")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<BuildingResponse> createBuilding(
             Authentication authentication,
             @PathVariable Long societyId,
@@ -116,7 +116,7 @@ public class SocietyController {
     }
 
     @GetMapping("/{societyId}/buildings")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<BuildingResponse>> listBuildings(
             Authentication authentication,
             @PathVariable Long societyId

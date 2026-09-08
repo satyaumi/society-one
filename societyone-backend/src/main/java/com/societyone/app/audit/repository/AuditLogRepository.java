@@ -28,5 +28,9 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             Pageable pageable
     );
 
+    List<AuditLog> findAllByOrderByCreatedAtDesc(
+            Pageable pageable
+    );
+
     long countByCreatedAtAfter(java.time.OffsetDateTime createdAt);
 }

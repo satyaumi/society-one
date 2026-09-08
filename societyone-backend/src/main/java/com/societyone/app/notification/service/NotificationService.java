@@ -484,7 +484,7 @@ public class NotificationService {
             return Set.of(AnnouncementAudience.PUBLIC);
         }
         return switch (role) {
-            case ADMIN -> Set.of(
+            case PLATFORM_ADMIN, ADMIN -> Set.of(
                     AnnouncementAudience.ALL_MEMBERS,
                     AnnouncementAudience.RESIDENTS,
                     AnnouncementAudience.SECURITY,

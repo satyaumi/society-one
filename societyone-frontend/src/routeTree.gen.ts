@@ -20,7 +20,9 @@ import { Route as InviteRouteImport } from './routes/invite'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OnlineVisitRouteImport } from './routes/online-visit'
+import { Route as PlatformRouteImport } from './routes/platform'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as RegisterSocietyRouteImport } from './routes/register-society'
 import { Route as RegularVisitorsRouteImport } from './routes/regular-visitors'
 import { Route as RequestsRouteImport } from './routes/requests'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -95,9 +97,19 @@ const OnlineVisitRoute = OnlineVisitRouteImport.update({
   path: '/online-visit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlatformRoute = PlatformRouteImport.update({
+  id: '/platform',
+  path: '/platform',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterSocietyRoute = RegisterSocietyRouteImport.update({
+  id: '/register-society',
+  path: '/register-society',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegularVisitorsRoute = RegularVisitorsRouteImport.update({
@@ -203,7 +215,9 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/online-visit': typeof OnlineVisitRoute
+  '/platform': typeof PlatformRoute
   '/privacy': typeof PrivacyRoute
+  '/register-society': typeof RegisterSocietyRoute
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -234,7 +248,9 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/online-visit': typeof OnlineVisitRoute
+  '/platform': typeof PlatformRoute
   '/privacy': typeof PrivacyRoute
+  '/register-society': typeof RegisterSocietyRoute
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -267,7 +283,9 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/online-visit': typeof OnlineVisitRoute
+  '/platform': typeof PlatformRoute
   '/privacy': typeof PrivacyRoute
+  '/register-society': typeof RegisterSocietyRoute
   '/regular-visitors': typeof RegularVisitorsRoute
   '/requests': typeof RequestsRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -301,7 +319,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/online-visit'
+    | '/platform'
     | '/privacy'
+    | '/register-society'
     | '/regular-visitors'
     | '/requests'
     | '/reset-password'
@@ -332,7 +352,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/online-visit'
+    | '/platform'
     | '/privacy'
+    | '/register-society'
     | '/regular-visitors'
     | '/requests'
     | '/reset-password'
@@ -364,7 +386,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/online-visit'
+    | '/platform'
     | '/privacy'
+    | '/register-society'
     | '/regular-visitors'
     | '/requests'
     | '/reset-password'
@@ -397,7 +421,9 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
   OnlineVisitRoute: typeof OnlineVisitRoute
+  PlatformRoute: typeof PlatformRoute
   PrivacyRoute: typeof PrivacyRoute
+  RegisterSocietyRoute: typeof RegisterSocietyRoute
   RegularVisitorsRoute: typeof RegularVisitorsRoute
   RequestsRoute: typeof RequestsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -491,11 +517,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnlineVisitRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/platform': {
+      id: '/platform'
+      path: '/platform'
+      fullPath: '/platform'
+      preLoaderRoute: typeof PlatformRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy': {
       id: '/privacy'
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register-society': {
+      id: '/register-society'
+      path: '/register-society'
+      fullPath: '/register-society'
+      preLoaderRoute: typeof RegisterSocietyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/regular-visitors': {
@@ -659,7 +699,9 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
   OnlineVisitRoute: OnlineVisitRoute,
+  PlatformRoute: PlatformRoute,
   PrivacyRoute: PrivacyRoute,
+  RegisterSocietyRoute: RegisterSocietyRoute,
   RegularVisitorsRoute: RegularVisitorsRoute,
   RequestsRoute: RequestsRoute,
   ResetPasswordRoute: ResetPasswordRoute,

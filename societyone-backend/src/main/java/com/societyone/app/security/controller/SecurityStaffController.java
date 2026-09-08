@@ -32,7 +32,7 @@ public class SecurityStaffController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<SecurityStaffResponse> create(
             Authentication authentication,
             @Valid @RequestBody SecurityStaffCreateRequest request
@@ -54,7 +54,7 @@ public class SecurityStaffController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<SecurityStaffResponse>> getAll(
             Authentication authentication
     ) {
@@ -63,7 +63,7 @@ public class SecurityStaffController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<SecurityStaffResponse> get(
             Authentication authentication,
             @PathVariable Long id
@@ -73,7 +73,7 @@ public class SecurityStaffController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<SecurityStaffResponse> updateStatus(
             Authentication authentication,
             @PathVariable Long id,

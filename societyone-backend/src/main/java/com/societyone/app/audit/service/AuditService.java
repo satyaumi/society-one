@@ -160,6 +160,10 @@ public class AuditService {
     }
 
     private Society getAdminSociety(User admin) {
+        if (admin.getRole() == Role.PLATFORM_ADMIN) {
+            return societyRepository.findAll().stream().findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No society found"));
+        }
         return societyRepository
                 .findByOwnerOrderByNameAsc(admin)
                 .stream()

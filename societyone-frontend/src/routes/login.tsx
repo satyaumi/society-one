@@ -104,13 +104,17 @@ function LoginPage() {
     setLoading(true);
     
     try {
-      await authService.login({
+      const res = await authService.login({
         method,
         identifier,
         password,
         intendedRole: role,
       });
-      await navigate({ to: "/dashboard" });
+      if (res.user.role === "PLATFORM_ADMIN") {
+        await navigate({ to: "/platform" });
+      } else {
+        await navigate({ to: "/dashboard" });
+      }
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.code === "INVALID_CREDENTIALS")) {
         setError(credentialsErrorMessage(method));
@@ -126,8 +130,12 @@ function LoginPage() {
     setError(null);
     setGoogleLoading(true);
     try {
-      await authService.loginWithGoogle();
-      await navigate({ to: "/dashboard" });
+      const res = await authService.loginWithGoogle();
+      if (res.user.role === "PLATFORM_ADMIN") {
+        await navigate({ to: "/platform" });
+      } else {
+        await navigate({ to: "/dashboard" });
+      }
     } catch (err) {
       setError(toUserError(err));
     } finally {

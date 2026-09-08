@@ -87,7 +87,7 @@ public class DashboardService {
     public DashboardSummaryResponse getSummary(User actor) {
         requireAuthenticated(actor);
         return switch (actor.getRole()) {
-            case ADMIN -> adminSummary(actor);
+            case PLATFORM_ADMIN, ADMIN -> adminSummary(actor);
             case RESIDENT -> residentSummary(actor);
             case SECURITY -> securitySummary(actor);
             case VISITOR -> visitorSummary(actor);
@@ -603,7 +603,7 @@ public class DashboardService {
 
     public SocietyCommandCenterResponse getSocietyCommandCenter(User actor, Long buildingIdFilter, String timeRange) {
         requireAuthenticated(actor);
-        if (actor.getRole() != Role.ADMIN) {
+        if (actor.getRole() != Role.ADMIN && actor.getRole() != Role.PLATFORM_ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only Admin can access Society Command Center");
         }
 

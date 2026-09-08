@@ -19,4 +19,6 @@ public interface SecurityStaffProfileRepository
             Long societyId,
             Long userId
     );
+
+    long countBySocietyId(Long societyId);
 }

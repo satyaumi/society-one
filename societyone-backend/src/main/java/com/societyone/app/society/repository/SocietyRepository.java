@@ -21,4 +21,6 @@ public interface SocietyRepository extends JpaRepository<Society, Long> {
     boolean existsByNameIgnoreCase(String name);
 
     boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+
+    long countByStatus(com.societyone.app.society.entity.StructureStatus status);
 }

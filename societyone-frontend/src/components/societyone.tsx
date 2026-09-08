@@ -46,9 +46,17 @@ export type AppPath =
   | "/admin/security-staff"
   | "/admin/society"
   | "/admin/visitors"
+  | "/platform"
   | "/settings";
 
-const roleLabels: Record<Role, string> = { VISITOR: "Visitor", RESIDENT: "Resident", SECURITY: "Security", ADMIN: "Admin" };
+const roleLabels: Record<Role, string> = {
+  VISITOR: "Visitor",
+  RESIDENT: "Resident",
+  SECURITY: "Security",
+  ADMIN: "Society Admin",
+  PLATFORM_ADMIN: "Platform Management",
+};
+
 const navByRole: Record<Role, { label: string; to: AppPath; icon: ReactNode }[]> = {
   RESIDENT: [
     { label: "Overview", to: "/dashboard", icon: <Home /> },
@@ -78,6 +86,11 @@ const navByRole: Record<Role, { label: string; to: AppPath; icon: ReactNode }[]>
     { label: "Society structure", to: "/admin/society", icon: <Building2 /> },
     { label: "Visitor activity", to: "/admin/visitors", icon: <ClipboardCheck /> },
     { label: "Audit history", to: "/history", icon: <FileClock /> },
+  ],
+  PLATFORM_ADMIN: [
+    { label: "Platform Overview", to: "/platform", icon: <Home /> },
+    { label: "Society Requests", to: "/platform", icon: <Building2 /> },
+    { label: "Audit Stream", to: "/history", icon: <FileClock /> },
   ],
 };
 

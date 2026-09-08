@@ -287,6 +287,13 @@ public class SocietyStructureService {
 
     private Society requireOwnedSociety(User actor, Long societyId) {
         requireAdmin(actor);
+        if (actor.getRole() == Role.PLATFORM_ADMIN) {
+            return societyRepository.findById(societyId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Society not found"
+                    ));
+        }
         return societyRepository.findByIdAndOwner(societyId, actor)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -301,7 +308,7 @@ public class SocietyStructureService {
                         HttpStatus.NOT_FOUND,
                         "Building not found"
                 ));
-        if (!building.getSociety().getOwner().getId().equals(actor.getId())) {
+        if (actor.getRole() != Role.PLATFORM_ADMIN && !building.getSociety().getOwner().getId().equals(actor.getId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Building not found");
         }
         return building;
@@ -314,7 +321,7 @@ public class SocietyStructureService {
                         HttpStatus.NOT_FOUND,
                         "Floor not found"
                 ));
-        if (!floor.getBuilding().getSociety().getOwner().getId().equals(actor.getId())) {
+        if (actor.getRole() != Role.PLATFORM_ADMIN && !floor.getBuilding().getSociety().getOwner().getId().equals(actor.getId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Floor not found");
         }
         return floor;
@@ -327,14 +334,14 @@ public class SocietyStructureService {
                         HttpStatus.NOT_FOUND,
                         "Flat not found"
                 ));
-        if (!flat.getSociety().getOwner().getId().equals(actor.getId())) {
+        if (actor.getRole() != Role.PLATFORM_ADMIN && !flat.getSociety().getOwner().getId().equals(actor.getId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Flat not found");
         }
         return flat;
     }
 
     private static void requireAdmin(User actor) {
-        if (actor.getRole() != Role.ADMIN) {
+        if (actor.getRole() != Role.ADMIN && actor.getRole() != Role.PLATFORM_ADMIN) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "You are not allowed to perform this action"

@@ -1,4 +1,4 @@
-export type Role = "VISITOR" | "RESIDENT" | "SECURITY" | "ADMIN";
+export type Role = "VISITOR" | "RESIDENT" | "SECURITY" | "ADMIN" | "PLATFORM_ADMIN";
 
 export type VisitorType =
   | "GUEST"
@@ -453,4 +453,117 @@ export interface FlatAvailability {
   isOccupied: boolean;
   occupiedByResidentName?: string;
   status: string;
+}
+
+export type SocietyRequestStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "CHANGES_REQUESTED"
+  | "APPROVED"
+  | "SOCIETY_CREATED"
+  | "ADMIN_ASSIGNED"
+  | "REJECTED"
+  | "CANCELLED";
+
+export interface SocietyCreationRequest {
+  id: number;
+  referenceCode: string;
+  primaryContactName: string;
+  primaryContactEmail: string;
+  primaryContactPhone: string;
+  societyOfficialEmail?: string;
+  secondaryContactName?: string;
+  secondaryContactPhone?: string;
+  secondaryContactEmail?: string;
+  societyName: string;
+  registrationNumber?: string;
+  societyType: string;
+  totalFlats: number;
+  numberOfWings: number;
+  address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  managementMethod?: string;
+  documentUrl?: string;
+  documentFilename?: string;
+  documentSizeBytes?: number;
+  status: SocietyRequestStatus;
+  reviewerUserId?: number;
+  reviewerName?: string;
+  reviewNotes?: string;
+  rejectionReason?: string;
+  reviewedAt?: string;
+  createdSocietyId?: number;
+  createdSocietyName?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SocietyCreationSubmitInput {
+  primaryContactName: string;
+  primaryContactEmail: string;
+  primaryContactPhone: string;
+  societyOfficialEmail?: string;
+  secondaryContactName?: string;
+  secondaryContactPhone?: string;
+  secondaryContactEmail?: string;
+  societyName: string;
+  registrationNumber?: string;
+  societyType?: string;
+  totalFlats?: number;
+  numberOfWings?: number;
+  address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  managementMethod?: string;
+  applicantPassword?: string;
+}
+
+export interface PlatformKPIs {
+  totalSocieties: number;
+  activeSocieties: number;
+  pendingRequests: number;
+  underReviewRequests: number;
+  approvedRequests: number;
+  totalSocietyAdmins: number;
+  totalResidents: number;
+  totalFlats: number;
+  totalSecurityStaff: number;
+}
+
+export interface PlatformSocietyDirectoryItem {
+  id: number;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  status: string;
+  adminUserId?: number;
+  adminFullName: string;
+  adminEmail?: string;
+  adminPhone?: string;
+  buildingCount: number;
+  floorCount: number;
+  flatCount: number;
+  residentCount: number;
+  securityCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdminHandoverInput {
+  newAdminUserId: number;
+  reason?: string;
+}
+
+export interface ReviewActionInput {
+  notes?: string;
+  reason?: string;
+  adminPassword?: string;
 }
