@@ -2107,11 +2107,21 @@ export interface SocietyRequestService {
 
 export const societyRequestService: SocietyRequestService = {
   async submit(data, document) {
+    // Sanitize optional empty strings to avoid validation issues
+    const sanitizedData: SocietyCreationSubmitInput = {
+      ...data,
+      societyOfficialEmail: data.societyOfficialEmail?.trim() || undefined,
+      secondaryContactName: data.secondaryContactName?.trim() || undefined,
+      secondaryContactPhone: data.secondaryContactPhone?.trim() || undefined,
+      secondaryContactEmail: data.secondaryContactEmail?.trim() || undefined,
+      registrationNumber: data.registrationNumber?.trim() || undefined,
+    };
+
     if (document) {
       const formData = new FormData();
       formData.append(
         "data",
-        new Blob([JSON.stringify(data)], { type: "application/json" }),
+        new Blob([JSON.stringify(sanitizedData)], { type: "application/json" }),
       );
       formData.append("document", document);
       return await withReadableError(
@@ -2125,7 +2135,7 @@ export const societyRequestService: SocietyRequestService = {
     return await withReadableError(
       apiFetch<SocietyCreationRequest>("/public/society-requests", {
         method: "POST",
-        body: JSON.stringify(data),
+        json: sanitizedData,
       }),
     );
   },

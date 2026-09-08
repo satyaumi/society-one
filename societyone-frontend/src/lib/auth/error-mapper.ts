@@ -77,10 +77,25 @@ export function credentialsErrorMessage(method?: string): string {
 
 export function toUserError(err: unknown, fallback = "Unable to connect to the server."): string {
   if (err && typeof err === "object") {
-    const e = err as { status?: number; code?: string; message?: string };
+    const e = err as {
+      status?: number;
+      code?: string;
+      message?: string;
+      details?: Array<{ field: string; message: string }>;
+    };
+
+    if (e.details && e.details.length > 0 && e.details[0].message) {
+      return e.details[0].message;
+    }
+
+    if (typeof e.message === "string" && e.message.trim() && e.message !== "Request failed" && e.message !== "An unexpected error occurred") {
+      return e.message;
+    }
+
     if (typeof e.status === "number") {
       return resolveErrorMessage(e.status, e.code, e.message);
     }
+
     if (typeof e.message === "string" && e.message.trim()) {
       return e.message;
     }

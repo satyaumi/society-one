@@ -91,6 +91,8 @@ export function RegisterSocietyPage() {
   const [error, setError] = useState<string | null>(null);
   const [submittedRequest, setSubmittedRequest] = useState<SocietyCreationRequest | null>(null);
   const [copied, setCopied] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
 
   // Status Tracker Modal State
   const [trackerOpen, setTrackerOpen] = useState(false);
@@ -230,11 +232,25 @@ export function RegisterSocietyPage() {
   async function handleSubmit() {
     if (!validateStep(2) || !validateStep(3)) return;
 
+    if (!termsAccepted) {
+      setError("Please read and accept the Terms & Conditions and Onboarding Policy before submitting.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
     try {
-      const result = await societyRequestService.submit(formData, documentFile || undefined);
+      const sanitizedData: SocietyCreationSubmitInput = {
+        ...formData,
+        societyOfficialEmail: formData.societyOfficialEmail?.trim() || undefined,
+        secondaryContactName: formData.secondaryContactName?.trim() || undefined,
+        secondaryContactPhone: formData.secondaryContactPhone?.trim() || undefined,
+        secondaryContactEmail: formData.secondaryContactEmail?.trim() || undefined,
+        registrationNumber: formData.registrationNumber?.trim() || undefined,
+      };
+
+      const result = await societyRequestService.submit(sanitizedData, documentFile || undefined);
       setSubmittedRequest(result);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: unknown) {
@@ -978,6 +994,37 @@ export function RegisterSocietyPage() {
                     )}
                   </div>
 
+                  {/* Terms & Conditions Acceptance Box */}
+                  <div className="bg-slate-900/80 border border-slate-800 p-4.5 rounded-xl space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        id="termsAndConditionsCheck"
+                        checked={termsAccepted}
+                        onChange={(e) => {
+                          setTermsAccepted(e.target.checked);
+                          if (e.target.checked && error) setError(null);
+                        }}
+                        className="mt-0.5 size-4.5 rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-cyan-400 focus:ring-offset-slate-900 accent-cyan-500"
+                      />
+                      <span className="text-xs text-slate-300 leading-relaxed">
+                        I confirm that I am an authorized representative / managing committee member of this residential society. I have read and agree to the{" "}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setTermsModalOpen(true);
+                          }}
+                          className="text-cyan-400 underline font-semibold hover:text-cyan-300 inline"
+                        >
+                          Terms &amp; Conditions and Platform Onboarding Policy
+                        </button>
+                        , and verify all submitted contact information is accurate for administrative handover.
+                      </span>
+                    </label>
+                  </div>
+
                   <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl text-xs text-slate-300 flex items-start gap-2.5">
                     <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
                     <p>
@@ -998,8 +1045,8 @@ export function RegisterSocietyPage() {
                   </Button>
                   <Button
                     onClick={handleSubmit}
-                    disabled={submitting}
-                    className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white gap-2 font-semibold px-6 shadow-lg shadow-emerald-600/25 transition-all"
+                    disabled={submitting || !termsAccepted}
+                    className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white gap-2 font-semibold px-6 shadow-lg shadow-emerald-600/25 transition-all"
                   >
                     {submitting ? (
                       <>
@@ -1017,6 +1064,77 @@ export function RegisterSocietyPage() {
           </div>
         )}
       </main>
+
+      {/* TERMS & CONDITIONS MODAL */}
+      {termsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0D1527] border border-slate-800 rounded-2xl max-w-2xl w-full p-6 sm:p-7 space-y-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-slate-100 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 shrink-0">
+              <div className="flex items-center gap-2.5 text-white font-display font-bold text-lg">
+                <Shield className="w-5 h-5 text-cyan-400" /> SocietyOne Platform Onboarding Terms &amp; Conditions
+              </div>
+              <button
+                onClick={() => setTermsModalOpen(false)}
+                className="text-slate-400 hover:text-white text-lg px-2 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 overflow-y-auto text-xs text-slate-300 leading-relaxed pr-2">
+              <div>
+                <h4 className="font-bold text-white text-sm mb-1">1. Authorization &amp; Accuracy</h4>
+                <p>
+                  By submitting this onboarding application, you represent and warrant that you are a legally authorized representative, Resident Welfare Association (RWA) member, builder representative, or designated property manager of the named residential community. All contact and structural information must be true, accurate, and up-to-date.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-white text-sm mb-1">2. Verification &amp; Review Protocol</h4>
+                <p>
+                  Platform Management reserves the right to verify society registration certificates, applicant phone numbers, and official society email addresses prior to account approval. Applications containing fraudulent or non-verifiable information will be rejected.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-white text-sm mb-1">3. Handover &amp; Administrative Privileges</h4>
+                <p>
+                  Upon verification and approval by Platform Management, the primary applicant will be provisioned with Society Administrator credentials. As Society Admin, you will be responsible for configuring towers, managing flat owner allocations, and overseeing security gate workflows.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-white text-sm mb-1">4. Resident Privacy &amp; Data Security</h4>
+                <p>
+                  SocietyOne operates on high-security standards. You agree to utilize resident contact details, visitor entry logs, and authorization data solely for residential security and community management purposes in compliance with data privacy regulations.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-800/80 pt-4 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setTermsModalOpen(false)}
+                className="border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200"
+              >
+                Close
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setTermsAccepted(true);
+                  setTermsModalOpen(false);
+                  if (error) setError(null);
+                }}
+                className="bg-gradient-to-r from-brand-blue to-cyan-600 hover:from-brand-blue/90 hover:to-cyan-500 text-white font-semibold shadow-md"
+              >
+                Accept &amp; Continue
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* STATUS TRACKER POPUP MODAL */}
       {trackerOpen && (
