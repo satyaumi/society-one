@@ -8,6 +8,8 @@ import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.TransactionSystemException;
+import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -227,6 +229,53 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(response);
+    }
+
+    /*
+     * Handles Spring transaction rollback exceptions.
+     *
+     * This happens when a DB constraint violation occurs inside a @Transactional
+     * method and the transaction is silently marked as rollback-only. The outer
+     * transaction then fails with UnexpectedRollbackException when it tries to commit.
+     * We unwrap and check the cause to produce a user-friendly error.
+     */
+    @ExceptionHandler(UnexpectedRollbackException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnexpectedRollback(
+            UnexpectedRollbackException exception
+    ) {
+        log.error("Transaction rolled back unexpectedly: {}", exception.getMessage());
+        // Try to extract a meaningful cause
+        Throwable cause = exception.getCause();
+        while (cause != null && cause != cause.getCause()) {
+            if (cause instanceof DataIntegrityViolationException div) {
+                return handleDataIntegrityViolation(div);
+            }
+            if (cause instanceof ResponseStatusException rse) {
+                return handleResponseStatusException(rse);
+            }
+            cause = cause.getCause();
+        }
+        ApiResponse<Void> response = ApiResponse.failure(
+                "OPERATION_FAILED",
+                "The operation could not be completed due to a data conflict. Please check for duplicate names, emails, or phone numbers and try again."
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(TransactionSystemException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTransactionSystem(
+            TransactionSystemException exception
+    ) {
+        log.error("Transaction system error: {}", exception.getMessage());
+        Throwable cause = exception.getRootCause();
+        if (cause instanceof DataIntegrityViolationException div) {
+            return handleDataIntegrityViolation(div);
+        }
+        ApiResponse<Void> response = ApiResponse.failure(
+                "OPERATION_FAILED",
+                "The operation could not be completed. Please try again."
+        );
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 
     /*

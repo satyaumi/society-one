@@ -404,6 +404,18 @@ public class SocietyCreationRequestService {
         // 1. Resolve or Provision the Society Admin User
         User adminUser = resolveOrProvisionSocietyAdmin(req, action != null ? action.adminPassword() : null);
 
+        // IMPORTANT: Pre-check if this admin user already owns a society.
+        // The societies table has a UNIQUE constraint on owner_user_id (uk_societies_owner).
+        // If we attempt societyRepository.save() with an owner who already has a society,
+        // it will throw DataIntegrityViolationException INSIDE the transaction, marking it
+        // as rollback-only and causing UnexpectedRollbackException on commit.
+        // We detect this BEFORE the write to provide a clean 409 error instead of 500.
+        if (societyRepository.existsByOwner(adminUser)) {
+            // The existing user already owns a society — provision a fresh dedicated admin
+            // account so this new society can proceed. The existing user keeps their society.
+            adminUser = provisionFreshAdminUser(req, action != null ? action.adminPassword() : null);
+        }
+
         // 2. Create and Persist the Society entity
         Society society = new Society();
         society.setName(req.getSocietyName() != null ? req.getSocietyName().trim() : "Society");
@@ -562,6 +574,64 @@ public class SocietyCreationRequestService {
         String rawPassword = (customPassword != null && customPassword.trim().length() >= 6)
                 ? customPassword.trim()
                 : "Admin@" + (1000 + RANDOM.nextInt(9000));
+        newUser.setPasswordHash(passwordEncoder.encode(rawPassword));
+        newUser.setRole(Role.ADMIN);
+        newUser.setAccountStatus(AccountStatus.ACTIVE);
+        newUser.setEmailVerified(true);
+        newUser.setMobileVerified(true);
+
+        User savedUser = userRepository.save(newUser);
+
+        try {
+            emailService.sendWelcomeEmail(savedUser.getEmail(), savedUser.getFullName(), savedUser.getUsername(), savedUser.getRole().name());
+        } catch (Exception ignored) {
+        }
+
+        return savedUser;
+    }
+
+    /**
+     * Always creates a brand-new admin user, even if an existing user with the same
+     * email/phone is already the owner of another society. Used to avoid the
+     * uk_societies_owner unique constraint violation when the same contact person
+     * is linked to multiple society creation requests.
+     */
+    private User provisionFreshAdminUser(SocietyCreationRequest req, String customPassword) {
+        String email = req.getPrimaryContactEmail();
+        String phone = req.getPrimaryContactPhone();
+        String name = req.getPrimaryContactName() != null ? req.getPrimaryContactName().trim() : "Admin";
+
+        // Generate a unique username (always unique)
+        String username = generateUniqueUsername(name, email);
+
+        // If the email is already taken, append a numeric suffix to make it unique
+        String finalEmail = email;
+        if (email != null && userRepository.findByEmailIgnoreCase(email).isPresent()) {
+            String[] parts = email.split("@");
+            String localPart = parts[0];
+            String domain = parts.length > 1 ? "@" + parts[1] : "@society.local";
+            int suffix = 1;
+            while (userRepository.findByEmailIgnoreCase(localPart + suffix + domain).isPresent()) {
+                suffix++;
+            }
+            finalEmail = localPart + suffix + domain;
+        }
+
+        // If phone is already taken, use null (phone is optional)
+        String finalPhone = phone;
+        if (phone != null && userRepository.findByMobileNumber(phone).isPresent()) {
+            finalPhone = null;
+        }
+
+        String rawPassword = (customPassword != null && customPassword.trim().length() >= 6)
+                ? customPassword.trim()
+                : "Admin@" + (1000 + RANDOM.nextInt(9000));
+
+        User newUser = new User();
+        newUser.setFullName(name);
+        newUser.setEmail(finalEmail);
+        newUser.setMobileNumber(finalPhone);
+        newUser.setUsername(username);
         newUser.setPasswordHash(passwordEncoder.encode(rawPassword));
         newUser.setRole(Role.ADMIN);
         newUser.setAccountStatus(AccountStatus.ACTIVE);
