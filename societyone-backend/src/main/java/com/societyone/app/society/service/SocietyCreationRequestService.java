@@ -666,15 +666,6 @@ public class SocietyCreationRequestService {
                 ? findUserByStoredMobile(canonicalMobile)
                 : Optional.empty();
 
-        if (existingByEmail.isPresent() && existingByMobile.isPresent()
-                && !existingByEmail.get().getId().equals(existingByMobile.get().getId())) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "This email and mobile number belong to two different users. " +
-                            "Use one existing account, or change the contact details."
-            );
-        }
-
         Optional<User> existingUser = existingByEmail.or(() -> existingByMobile);
 
         if (existingUser.isPresent()) {
@@ -689,21 +680,14 @@ public class SocietyCreationRequestService {
             user.setAccountStatus(AccountStatus.ACTIVE);
 
             if (canonicalMobile != null && !canonicalMobile.equals(user.getMobileNumber())) {
-                if (user.getMobileNumber() == null
-                        || contactNormalizationService.isSameCanonicalMobile(user.getMobileNumber(), canonicalMobile)) {
-                    Optional<User> mobileHolder = findUserByStoredMobile(canonicalMobile);
-                    if (mobileHolder.isPresent() && !mobileHolder.get().getId().equals(user.getId())) {
-                        throw new ResponseStatusException(
-                                HttpStatus.CONFLICT,
-                                "A different user already uses this mobile number."
-                        );
-                    }
+                Optional<User> mobileHolder = findUserByStoredMobile(canonicalMobile);
+                if (mobileHolder.isEmpty() || mobileHolder.get().getId().equals(user.getId())) {
                     user.setMobileNumber(canonicalMobile);
                 }
             }
             if (canonicalEmail != null && !canonicalEmail.equalsIgnoreCase(user.getEmail())) {
-                if (user.getEmail() == null
-                        || contactNormalizationService.isSameCanonicalEmail(user.getEmail(), canonicalEmail)) {
+                Optional<User> emailHolder = userRepository.findByEmailIgnoreCase(canonicalEmail);
+                if (emailHolder.isEmpty() || emailHolder.get().getId().equals(user.getId())) {
                     user.setEmail(canonicalEmail);
                 }
             }
@@ -711,51 +695,22 @@ public class SocietyCreationRequestService {
             return userRepository.save(user);
         }
 
-        if (canonicalEmail != null && userRepository.existsByEmailIgnoreCase(canonicalEmail)) {
-            Optional<User> fallbackUser = userRepository.findByEmailIgnoreCase(canonicalEmail);
-            if (fallbackUser.isPresent()) {
-                User user = fallbackUser.get();
-                if (user.getRole() != Role.ADMIN && user.getRole() != Role.PLATFORM_ADMIN) {
-                    user.setRole(Role.ADMIN);
-                }
-                if (customPassword != null && customPassword.trim().length() >= 6) {
-                    user.setPasswordHash(passwordEncoder.encode(customPassword.trim()));
-                }
-                user.setAccountStatus(AccountStatus.ACTIVE);
-                return userRepository.save(user);
-            }
-        }
-        if (canonicalMobile != null && findUserByStoredMobile(canonicalMobile).isPresent()) {
-            Optional<User> fallbackUser = findUserByStoredMobile(canonicalMobile);
-            if (fallbackUser.isPresent()) {
-                User user = fallbackUser.get();
-                if (user.getRole() != Role.ADMIN && user.getRole() != Role.PLATFORM_ADMIN) {
-                    user.setRole(Role.ADMIN);
-                }
-                if (customPassword != null && customPassword.trim().length() >= 6) {
-                    user.setPasswordHash(passwordEncoder.encode(customPassword.trim()));
-                }
-                user.setAccountStatus(AccountStatus.ACTIVE);
-                return userRepository.save(user);
-            }
-        }
-
+        // Neither email nor mobile exists — provision new admin user
         String finalEmail = canonicalEmail;
-        if (canonicalEmail != null && userRepository.existsByEmailIgnoreCase(canonicalEmail)) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "A user with this email address already exists but could not be linked. " +
-                            "Please log in with the existing account or use a different email."
-            );
+        if (canonicalEmail != null && userRepository.findByEmailIgnoreCase(canonicalEmail).isPresent()) {
+            String[] parts = canonicalEmail.split("@");
+            String localPart = parts[0];
+            String domain = parts.length > 1 ? "@" + parts[1] : "@society.local";
+            int sfx = 1;
+            while (userRepository.existsByEmailIgnoreCase(localPart + sfx + domain)) {
+                sfx++;
+            }
+            finalEmail = localPart + sfx + domain;
         }
 
         String finalMobile = canonicalMobile;
         if (canonicalMobile != null && findUserByStoredMobile(canonicalMobile).isPresent()) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "A user with this mobile number already exists but could not be linked. " +
-                            "Please log in with the existing account or use a different mobile number."
-            );
+            finalMobile = null;
         }
 
         User newUser = new User();

@@ -12,7 +12,7 @@ public class AuditLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "actor_user_id", nullable = false)
+    @Column(name = "actor_user_id")
     private Long actorUserId;
 
     @Column(name = "society_id")
