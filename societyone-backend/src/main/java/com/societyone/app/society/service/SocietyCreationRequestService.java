@@ -165,6 +165,98 @@ public class SocietyCreationRequestService {
         return SocietyCreationRequestResponse.from(saved);
     }
 
+    @Transactional
+    public SocietyCreationRequestResponse resubmitRequestByApplicant(
+            String referenceCode,
+            SocietyCreationSubmitRequest request,
+            MultipartFile document
+    ) {
+        if (referenceCode == null || referenceCode.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Application reference code is required.");
+        }
+
+        String cleanRef = referenceCode.replace("#", "").trim().toUpperCase(Locale.ROOT);
+        SocietyCreationRequest req = requestRepository.findByReferenceCode(cleanRef)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Application not found with reference " + cleanRef));
+
+        // Allowed to edit when CHANGES_REQUESTED or SUBMITTED
+        if (req.getStatus() != SocietyRequestStatus.CHANGES_REQUESTED
+                && req.getStatus() != SocietyRequestStatus.SUBMITTED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Application cannot be edited in its current status: " + req.getStatus()
+            );
+        }
+
+        // Update fields
+        req.setPrimaryContactName(request.primaryContactName().trim());
+        req.setPrimaryContactEmail(normalizeEmail(request.primaryContactEmail()));
+        req.setPrimaryContactPhone(normalizePhone(request.primaryContactPhone()));
+        req.setSocietyOfficialEmail(normalizeEmail(request.societyOfficialEmail()));
+
+        if (request.secondaryContactName() != null && !request.secondaryContactName().isBlank()) {
+            req.setSecondaryContactName(request.secondaryContactName().trim());
+            req.setSecondaryContactPhone(normalizePhone(request.secondaryContactPhone()));
+            req.setSecondaryContactEmail(normalizeEmail(request.secondaryContactEmail()));
+        } else {
+            req.setSecondaryContactName(null);
+            req.setSecondaryContactPhone(null);
+            req.setSecondaryContactEmail(null);
+        }
+
+        req.setSocietyName(request.societyName().trim());
+        req.setRegistrationNumber(blankToNull(request.registrationNumber()));
+        req.setSocietyType(request.societyType() != null && !request.societyType().isBlank()
+                ? request.societyType().trim() : "HOUSING_SOCIETY");
+        req.setTotalFlats(request.totalFlats() != null && request.totalFlats() > 0 ? request.totalFlats() : 1);
+        req.setNumberOfWings(request.numberOfWings() != null && request.numberOfWings() > 0 ? request.numberOfWings() : 1);
+        req.setAddress(request.address().trim());
+        req.setCity(request.city().trim());
+        req.setState(request.state().trim());
+        req.setPostalCode(request.postalCode().trim());
+        req.setManagementMethod(request.managementMethod() != null && !request.managementMethod().isBlank()
+                ? request.managementMethod().trim() : "MANUAL");
+
+        // If new document uploaded, store and replace
+        if (document != null && !document.isEmpty()) {
+            storeDocument(req, document);
+        }
+
+        // Reset status back to SUBMITTED so Platform Admin sees it as newly resubmitted for review
+        req.setStatus(SocietyRequestStatus.SUBMITTED);
+
+        SocietyCreationRequest saved = requestRepository.save(req);
+
+        auditService.record(
+                saved.getApplicantUser() != null ? saved.getApplicantUser().getId() : null,
+                null,
+                AuditAction.SOCIETY_REQUEST_SUBMITTED,
+                "SOCIETY_REQUEST",
+                saved.getId(),
+                "Applicant updated and resubmitted society request " + saved.getReferenceCode()
+        );
+
+        // Notify applicant via email
+        try {
+            emailService.sendGeneralNotificationEmail(
+                    saved.getPrimaryContactEmail(),
+                    saved.getPrimaryContactName(),
+                    "Society Request Updated (" + saved.getReferenceCode() + ")",
+                    "REQUEST UPDATED",
+                    "#2563eb",
+                    "Your updated details and documents for <strong>" + saved.getSocietyName() +
+                            "</strong> have been successfully resubmitted to Platform Management.<br><br>" +
+                            "<strong>Application Reference:</strong> " + saved.getReferenceCode() + "<br>" +
+                            "<strong>Status:</strong> Submitted (Pending Review)",
+                    "Application Ref",
+                    saved.getReferenceCode()
+            );
+        } catch (Exception ignored) {
+        }
+
+        return SocietyCreationRequestResponse.from(saved);
+    }
+
     @Transactional(readOnly = true)
     public List<SocietyCreationRequestResponse> trackRequest(String query) {
         if (query == null || query.isBlank()) {

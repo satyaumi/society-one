@@ -2095,6 +2095,7 @@ export const dashboardService: DashboardService = {
 
 export interface SocietyRequestService {
   submit(data: SocietyCreationSubmitInput, document?: File): Promise<SocietyCreationRequest>;
+  resubmit(referenceCode: string, data: SocietyCreationSubmitInput, document?: File): Promise<SocietyCreationRequest>;
   track(query: string): Promise<SocietyCreationRequest[]>;
   list(status?: string): Promise<SocietyCreationRequest[]>;
   get(id: number): Promise<SocietyCreationRequest>;
@@ -2135,6 +2136,40 @@ export const societyRequestService: SocietyRequestService = {
     return await withReadableError(
       apiFetch<SocietyCreationRequest>("/public/society-requests", {
         method: "POST",
+        json: sanitizedData,
+      }),
+    );
+  },
+
+  async resubmit(referenceCode, data, document) {
+    const cleanRef = referenceCode.replace("#", "").trim().toUpperCase();
+    const sanitizedData: SocietyCreationSubmitInput = {
+      ...data,
+      societyOfficialEmail: data.societyOfficialEmail?.trim() || undefined,
+      secondaryContactName: data.secondaryContactName?.trim() || undefined,
+      secondaryContactPhone: data.secondaryContactPhone?.trim() || undefined,
+      secondaryContactEmail: data.secondaryContactEmail?.trim() || undefined,
+      registrationNumber: data.registrationNumber?.trim() || undefined,
+    };
+
+    if (document) {
+      const formData = new FormData();
+      formData.append(
+        "data",
+        new Blob([JSON.stringify(sanitizedData)], { type: "application/json" }),
+      );
+      formData.append("document", document);
+      return await withReadableError(
+        apiFetch<SocietyCreationRequest>(`/public/society-requests/${encodeURIComponent(cleanRef)}`, {
+          method: "PUT",
+          body: formData,
+        }),
+      );
+    }
+
+    return await withReadableError(
+      apiFetch<SocietyCreationRequest>(`/public/society-requests/${encodeURIComponent(cleanRef)}`, {
+        method: "PUT",
         json: sanitizedData,
       }),
     );

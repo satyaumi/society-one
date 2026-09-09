@@ -124,4 +124,55 @@ class SocietyCreationRequestServiceTest {
         verify(buildingRepository, times(4)).save(any(Building.class));
         verify(auditService, times(3)).record(any(), any(), any(), any(), any(), any());
     }
+
+    @Test
+    @DisplayName("Applicant can update and resubmit application in CHANGES_REQUESTED status")
+    void testResubmitRequestByApplicant() {
+        SocietyCreationRequest req = new SocietyCreationRequest();
+        ReflectionTestUtils.setField(req, "id", 10L);
+        req.setReferenceCode("REQ-SOC-123456");
+        req.setSocietyName("Old Name");
+        req.setPrimaryContactName("John Doe");
+        req.setPrimaryContactEmail("john@example.com");
+        req.setPrimaryContactPhone("9876543210");
+        req.setStatus(SocietyRequestStatus.CHANGES_REQUESTED);
+        req.setReviewNotes("Please update society name and flat count.");
+
+        when(requestRepository.findByReferenceCode("REQ-SOC-123456")).thenReturn(Optional.of(req));
+        when(requestRepository.save(any(SocietyCreationRequest.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        com.societyone.app.society.dto.SocietyCreationSubmitRequest updateReq =
+                new com.societyone.app.society.dto.SocietyCreationSubmitRequest(
+                        "John Doe Updated",
+                        "john.updated@example.com",
+                        "9876543210",
+                        null,
+                        null,
+                        null,
+                        null,
+                        "New Society Name",
+                        "REG-2026",
+                        "HOUSING_SOCIETY",
+                        80,
+                        3,
+                        "123 Main Road",
+                        "Bhubaneswar",
+                        "Odisha",
+                        "751024",
+                        "MANAGING_COMMITTEE",
+                        null
+                );
+
+        SocietyCreationRequestResponse res = service.resubmitRequestByApplicant("REQ-SOC-123456", updateReq, null);
+
+        assertNotNull(res);
+        assertEquals("New Society Name", res.societyName());
+        assertEquals("SUBMITTED", res.status());
+        assertEquals(80, res.totalFlats());
+        assertEquals(3, res.numberOfWings());
+        assertEquals("john.updated@example.com", res.primaryContactEmail());
+
+        verify(requestRepository).save(req);
+        verify(auditService).record(any(), any(), any(), any(), any(), any());
+    }
 }

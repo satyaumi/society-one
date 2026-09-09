@@ -63,4 +63,51 @@ public class PublicSocietyRequestController {
         }
         return ApiResponse.success(requestService.trackRequest(searchQuery));
     }
+
+    /**
+     * Public update / resubmission of an existing Society Creation Request (JSON).
+     */
+    @PutMapping(value = "/{referenceCode}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<SocietyCreationRequestResponse> updateJson(
+            @PathVariable String referenceCode,
+            @Valid @RequestBody SocietyCreationSubmitRequest request
+    ) {
+        SocietyCreationRequestResponse response = requestService.resubmitRequestByApplicant(referenceCode, request, null);
+        return ApiResponse.success(response, "Your society creation request has been updated and resubmitted successfully!");
+    }
+
+    /**
+     * Public update / resubmission with optional document upload (multipart/form-data).
+     */
+    @PutMapping(value = "/{referenceCode}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<SocietyCreationRequestResponse> updateMultipart(
+            @PathVariable String referenceCode,
+            @Valid @RequestPart("data") SocietyCreationSubmitRequest request,
+            @RequestPart(value = "document", required = false) MultipartFile document
+    ) {
+        SocietyCreationRequestResponse response = requestService.resubmitRequestByApplicant(referenceCode, request, document);
+        return ApiResponse.success(response, "Your society creation request has been updated and resubmitted successfully!");
+    }
+
+    /**
+     * POST alias for clients submitting multipart updates.
+     */
+    @PostMapping(value = "/{referenceCode}/resubmit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<SocietyCreationRequestResponse> resubmitMultipart(
+            @PathVariable String referenceCode,
+            @Valid @RequestPart("data") SocietyCreationSubmitRequest request,
+            @RequestPart(value = "document", required = false) MultipartFile document
+    ) {
+        SocietyCreationRequestResponse response = requestService.resubmitRequestByApplicant(referenceCode, request, document);
+        return ApiResponse.success(response, "Your society creation request has been updated and resubmitted successfully!");
+    }
+
+    @PostMapping(value = "/{referenceCode}/resubmit", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<SocietyCreationRequestResponse> resubmitJson(
+            @PathVariable String referenceCode,
+            @Valid @RequestBody SocietyCreationSubmitRequest request
+    ) {
+        SocietyCreationRequestResponse response = requestService.resubmitRequestByApplicant(referenceCode, request, null);
+        return ApiResponse.success(response, "Your society creation request has been updated and resubmitted successfully!");
+    }
 }

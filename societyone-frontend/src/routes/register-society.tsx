@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Building2,
@@ -100,6 +100,85 @@ export function RegisterSocietyPage() {
   const [trackerLoading, setTrackerLoading] = useState(false);
   const [trackedResults, setTrackedResults] = useState<SocietyCreationRequest[] | null>(null);
   const [trackerError, setTrackerError] = useState<string | null>(null);
+
+  // Editing / Resubmission State for CHANGES_REQUESTED
+  const [editingReferenceCode, setEditingReferenceCode] = useState<string | null>(null);
+  const [editingReviewNotes, setEditingReviewNotes] = useState<string | null>(null);
+  const [existingDocumentFilename, setExistingDocumentFilename] = useState<string | null>(null);
+  const [existingDocumentUrl, setExistingDocumentUrl] = useState<string | null>(null);
+
+  // Auto-detect ?ref= or ?track= from URL query params
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref") || params.get("track");
+      if (ref) {
+        setTrackerQuery(ref.trim());
+        setTrackerOpen(true);
+        void (async () => {
+          setTrackerLoading(true);
+          setTrackerError(null);
+          try {
+            const list = await societyRequestService.track(ref.trim());
+            if (list && list.length > 0) {
+              setTrackedResults(list);
+            } else {
+              setTrackerError(`No society creation requests found for "${ref}".`);
+            }
+          } catch (err) {
+            setTrackerError(toUserError(err, "Could not fetch status."));
+          } finally {
+            setTrackerLoading(false);
+          }
+        })();
+      }
+    }
+  }, []);
+
+  function handleStartEdit(req: SocietyCreationRequest) {
+    setFormData({
+      primaryContactName: req.primaryContactName || "",
+      primaryContactEmail: req.primaryContactEmail || "",
+      primaryContactPhone: req.primaryContactPhone || "",
+      societyOfficialEmail: req.societyOfficialEmail || "",
+      secondaryContactName: req.secondaryContactName || "",
+      secondaryContactPhone: req.secondaryContactPhone || "",
+      secondaryContactEmail: req.secondaryContactEmail || "",
+      societyName: req.societyName || "",
+      registrationNumber: req.registrationNumber || "",
+      societyType: req.societyType || "HOUSING_SOCIETY",
+      totalFlats: req.totalFlats || 48,
+      numberOfWings: req.numberOfWings || 2,
+      address: req.address || "",
+      city: req.city || "Bhubaneswar",
+      state: req.state || "Odisha",
+      postalCode: req.postalCode || "751024",
+      managementMethod: req.managementMethod || "MANAGING_COMMITTEE",
+    });
+    setEditingReferenceCode(req.referenceCode);
+    setEditingReviewNotes(req.reviewNotes || null);
+    setExistingDocumentFilename(req.documentFilename || null);
+    setExistingDocumentUrl(req.documentUrl || null);
+    setDocumentFile(null);
+    setSubmittedRequest(null);
+    setTermsAccepted(true);
+    setTrackerOpen(false);
+    setError(null);
+    // Jump to Step 1 (Document) or Step 2 (Contacts) so user can inspect and update
+    setCurrentStep(1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleCancelEdit() {
+    setEditingReferenceCode(null);
+    setEditingReviewNotes(null);
+    setExistingDocumentFilename(null);
+    setExistingDocumentUrl(null);
+    setDocumentFile(null);
+    setError(null);
+    setCurrentStep(0);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   function updateField<K extends keyof SocietyCreationSubmitInput>(
     field: K,
@@ -250,7 +329,16 @@ export function RegisterSocietyPage() {
         registrationNumber: formData.registrationNumber?.trim() || undefined,
       };
 
-      const result = await societyRequestService.submit(sanitizedData, documentFile || undefined);
+      let result: SocietyCreationRequest;
+      if (editingReferenceCode) {
+        result = await societyRequestService.resubmit(editingReferenceCode, sanitizedData, documentFile || undefined);
+        setEditingReferenceCode(null);
+        setEditingReviewNotes(null);
+        setExistingDocumentFilename(null);
+        setExistingDocumentUrl(null);
+      } else {
+        result = await societyRequestService.submit(sanitizedData, documentFile || undefined);
+      }
       setSubmittedRequest(result);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: unknown) {
@@ -515,6 +603,37 @@ export function RegisterSocietyPage() {
 
             {error && <AuthFormError message={error} />}
 
+            {/* Application Modification Banner */}
+            {editingReferenceCode && (
+              <div className="p-4 sm:p-5 bg-amber-950/40 border border-amber-500/50 rounded-2xl shadow-xl space-y-3 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-500/20 pb-3">
+                  <div className="flex items-center gap-2 text-amber-300 font-bold text-sm sm:text-base">
+                    <AlertCircle className="w-5 h-5 shrink-0 text-amber-400" />
+                    Modifying Application: <span className="font-mono text-cyan-300">{editingReferenceCode}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="text-xs text-slate-400 hover:text-white underline self-start sm:self-auto cursor-pointer"
+                  >
+                    Cancel and Start New Application
+                  </button>
+                </div>
+                {editingReviewNotes ? (
+                  <div className="p-3 bg-slate-900/90 border border-amber-500/30 rounded-xl text-xs text-slate-200 leading-relaxed">
+                    <span className="font-bold text-amber-400 block mb-1">
+                      Platform Management Reviewer Instructions:
+                    </span>
+                    {editingReviewNotes}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-300">
+                    Update the required details or documents below, then proceed to review and click &ldquo;Update &amp; Resubmit Application&rdquo; to send the revisions back to Platform Management.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* STEP 0: PREPARATION CHECKLIST */}
             {currentStep === 0 && (
               <div className="bg-[#0D1527]/95 border border-slate-800/90 rounded-2xl p-6 sm:p-8 space-y-6 shadow-2xl shadow-black/40 backdrop-blur-sm">
@@ -598,6 +717,22 @@ export function RegisterSocietyPage() {
                     Optional
                   </span>
                 </div>
+
+                {/* Existing Attached Document Indicator */}
+                {existingDocumentFilename && (
+                  <div className="bg-slate-900/90 border border-slate-700/80 p-3.5 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                    <div className="flex items-center gap-2.5">
+                      <FileText className="w-5 h-5 text-cyan-400 shrink-0" />
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Current Attached Document:</span>
+                        <span className="font-semibold text-white">{existingDocumentFilename}</span>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-amber-400 bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-500/30">
+                      Upload new file below to replace
+                    </span>
+                  </div>
+                )}
 
                 {/* Upload Zone */}
                 <div className="border-2 border-dashed border-slate-700/80 hover:border-cyan-400/60 rounded-2xl p-8 text-center bg-slate-950/40 transition-colors">
@@ -1050,11 +1185,13 @@ export function RegisterSocietyPage() {
                   >
                     {submitting ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Submitting Request...
+                        <Loader2 className="w-4 h-4 animate-spin" />{" "}
+                        {editingReferenceCode ? "Resubmitting Application..." : "Submitting Request..."}
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-4 h-4" /> Submit Application
+                        <CheckCircle2 className="w-4 h-4" />{" "}
+                        {editingReferenceCode ? "Update & Resubmit Application" : "Submit Application"}
                       </>
                     )}
                   </Button>
@@ -1225,6 +1362,24 @@ export function RegisterSocietyPage() {
                         <strong className="text-rose-400 block mb-0.5">Rejection Reason:</strong>
                         {req.rejectionReason}
                       </div>
+                    )}
+
+                    {(req.status === "CHANGES_REQUESTED" || req.status === "SUBMITTED") && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => handleStartEdit(req)}
+                        className={`w-full font-semibold text-xs gap-1.5 shadow-md ${
+                          req.status === "CHANGES_REQUESTED"
+                            ? "bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white shadow-amber-600/20"
+                            : "bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
+                        }`}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        {req.status === "CHANGES_REQUESTED"
+                          ? "Edit & Resubmit Application"
+                          : "Modify Submitted Application Details"}
+                      </Button>
                     )}
                   </div>
                 ))}
