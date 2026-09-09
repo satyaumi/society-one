@@ -26,7 +26,7 @@ public class PlatformAdminBootstrap {
     @Value("${societyone.platform-admin.username:superadmin}")
     private String adminUsername;
 
-    @Value("${societyone.platform-admin.email:thesundar3@gmail.com}")
+    @Value("${societyone.platform-admin.email:societyone26@gmail.com}")
     private String adminEmail;
 
     @Value("${societyone.platform-admin.password:SuperAdmin@2026}")

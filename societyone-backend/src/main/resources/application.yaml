@@ -85,7 +85,7 @@ societyone:
     resend-api-key: ${RESEND_API_KEY:}
   platform-admin:
     username: ${PLATFORM_ADMIN_USERNAME:superadmin}
-    email: ${PLATFORM_ADMIN_EMAIL:thesundar3@gmail.com}
+    email: ${PLATFORM_ADMIN_EMAIL:societyone26@gmail.com}
     password: ${PLATFORM_ADMIN_PASSWORD:SuperAdmin@2026}
     full-name: ${PLATFORM_ADMIN_FULL_NAME:Platform Super Admin}
     mobile-number: ${PLATFORM_ADMIN_MOBILE:+919999900000}
