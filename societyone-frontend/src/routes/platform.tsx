@@ -295,6 +295,7 @@ function PlatformManagementPage() {
         const updated = await societyRequestService.markUnderReview(reqId, notesInput);
         setRequests((prev) => prev.map((r) => (r.id === reqId ? updated : r)));
         setSuccess(`Application ${updated.referenceCode || reqId} is now Under Review.`);
+        void loadData(true);
       } else if (actionModal.type === "CHANGES") {
         if (!notesInput.trim()) {
           setModalError("Please provide clear notes explaining the requested changes.");
@@ -304,6 +305,7 @@ function PlatformManagementPage() {
         const updated = await societyRequestService.requestChanges(reqId, notesInput.trim());
         setRequests((prev) => prev.map((r) => (r.id === reqId ? updated : r)));
         setSuccess(`Requested changes for ${updated.referenceCode || reqId}. Applicant has been notified.`);
+        void loadData(true);
       } else if (actionModal.type === "REJECT") {
         if (!notesInput.trim()) {
           setModalError("Please state a clear reason for rejecting this application.");
@@ -313,6 +315,7 @@ function PlatformManagementPage() {
         const updated = await societyRequestService.reject(reqId, notesInput.trim());
         setRequests((prev) => prev.map((r) => (r.id === reqId ? updated : r)));
         setSuccess(`Application ${updated.referenceCode || reqId} has been rejected.`);
+        void loadData(true);
       } else if (actionModal.type === "APPROVE") {
         const updated = await societyRequestService.approveAndCreate(reqId, {
           notes: notesInput.trim() || undefined,
@@ -796,6 +799,11 @@ function PlatformManagementPage() {
                           <span className="font-mono text-xs text-muted-foreground">{req.referenceCode || `REQ-${req.id}`}</span>
                           <h4 className="text-lg font-bold font-display">{req.societyName}</h4>
                           {renderStatusBadge(req.status)}
+                          {req.updatedAt && req.createdAt && new Date(req.updatedAt).getTime() - new Date(req.createdAt).getTime() > 5000 && (
+                            <Badge className="bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 text-[10px]">
+                              ↑ Updated by Applicant
+                            </Badge>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-muted-foreground">
@@ -811,6 +819,12 @@ function PlatformManagementPage() {
                             <Calendar className="size-3.5 text-primary" />
                             Submitted {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : "Recently"}
                           </span>
+                          {req.updatedAt && req.createdAt && new Date(req.updatedAt).getTime() - new Date(req.createdAt).getTime() > 5000 && (
+                            <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                              <RefreshCw className="size-3.5" />
+                              Last updated {new Date(req.updatedAt).toLocaleDateString()}
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground/80 pt-1">
@@ -851,7 +865,7 @@ function PlatformManagementPage() {
                           <Eye className="size-3.5" /> Details
                         </Button>
 
-                        {req.status === "SUBMITTED" && (
+                        {(req.status === "SUBMITTED" || req.status === "CHANGES_REQUESTED") && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -865,7 +879,7 @@ function PlatformManagementPage() {
                           </Button>
                         )}
 
-                        {(req.status === "SUBMITTED" || req.status === "UNDER_REVIEW") && (
+                        {(req.status === "SUBMITTED" || req.status === "UNDER_REVIEW" || req.status === "CHANGES_REQUESTED") && (
                           <>
                             <Button
                               variant="outline"
@@ -902,19 +916,6 @@ function PlatformManagementPage() {
                               <Check className="size-3.5" /> Approve & Create
                             </Button>
                           </>
-                        )}
-
-                        {req.status === "CHANGES_REQUESTED" && (
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setActionModal({ type: "APPROVE", request: req });
-                              setNotesInput("");
-                            }}
-                            className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                          >
-                            <Check className="size-3.5" /> Approve & Create
-                          </Button>
                         )}
                       </div>
                     </div>
@@ -1255,7 +1256,12 @@ function PlatformManagementPage() {
               <div className="grid grid-cols-2 gap-4 text-xs">
                 <div>
                   <span className="text-muted-foreground">Current Status</span>
-                  <div className="mt-1">{renderStatusBadge(selectedRequest.status)}</div>
+                  <div className="mt-1 flex items-center gap-2">
+                    {renderStatusBadge(selectedRequest.status)}
+                    {selectedRequest.updatedAt && selectedRequest.createdAt && new Date(selectedRequest.updatedAt).getTime() - new Date(selectedRequest.createdAt).getTime() > 5000 && (
+                      <Badge className="bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 text-[10px]">↑ Updated by Applicant</Badge>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Registration Number</span>
@@ -1269,6 +1275,16 @@ function PlatformManagementPage() {
                   <span className="text-muted-foreground">Management Method</span>
                   <div className="mt-1 font-medium">{selectedRequest.managementMethod || "Manual / Register"}</div>
                 </div>
+                <div>
+                  <span className="text-muted-foreground">Submitted On</span>
+                  <div className="mt-1 font-medium">{selectedRequest.createdAt ? new Date(selectedRequest.createdAt).toLocaleString() : "N/A"}</div>
+                </div>
+                {selectedRequest.updatedAt && selectedRequest.createdAt && new Date(selectedRequest.updatedAt).getTime() - new Date(selectedRequest.createdAt).getTime() > 5000 && (
+                  <div>
+                    <span className="text-muted-foreground text-blue-600 dark:text-blue-400">Last Updated (Applicant)</span>
+                    <div className="mt-1 font-medium text-blue-700 dark:text-blue-300">{new Date(selectedRequest.updatedAt).toLocaleString()}</div>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-xl border border-border p-4 bg-muted/20 space-y-3 text-xs">

@@ -637,11 +637,16 @@ public class SocietyCreationRequestService {
     }
 
     private User resolveOrProvisionSocietyAdmin(SocietyCreationRequest req, String customPassword) {
-        String email = req.getPrimaryContactEmail();
-        String phone = req.getPrimaryContactPhone();
+        String email = normalizeEmail(req.getPrimaryContactEmail());
+        String phone = normalizePhone(req.getPrimaryContactPhone());
 
-        Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email)
-                .or(() -> userRepository.findByMobileNumber(phone));
+        // Try to find by email first (case-insensitive), then by phone
+        Optional<User> existingByEmail = (email != null) ? userRepository.findByEmailIgnoreCase(email) : Optional.empty();
+        Optional<User> existingByPhone = (phone != null && existingByEmail.isEmpty())
+                ? userRepository.findByMobileNumber(phone)
+                : Optional.empty();
+
+        Optional<User> existingUser = existingByEmail.or(() -> existingByPhone);
 
         if (existingUser.isPresent()) {
             User user = existingUser.get();
@@ -655,13 +660,47 @@ public class SocietyCreationRequestService {
             return userRepository.save(user);
         }
 
-        // Provision new Society Admin user
-        // (either no existing user found, or existing user already owns another society)
+        // No existing user found — provision a new Society Admin user.
+        // CRITICAL: Before saving, de-duplicate email and phone to avoid DB constraint
+        // violations that would mark the transaction rollback-only (UnexpectedRollbackException).
+        String finalEmail = email;
+        if (email != null && userRepository.existsByEmailIgnoreCase(email)) {
+            // Edge case: found by a different case not caught by findByEmailIgnoreCase
+            // Try to find them again more broadly
+            existingUser = userRepository.findByEmailIgnoreCase(email);
+            if (existingUser.isPresent()) {
+                User user = existingUser.get();
+                if (user.getRole() != Role.ADMIN && user.getRole() != Role.PLATFORM_ADMIN) {
+                    user.setRole(Role.ADMIN);
+                }
+                if (customPassword != null && customPassword.trim().length() >= 6) {
+                    user.setPasswordHash(passwordEncoder.encode(customPassword.trim()));
+                }
+                user.setAccountStatus(AccountStatus.ACTIVE);
+                return userRepository.save(user);
+            }
+            // Still can't find by ID — suffix the email to avoid the UK constraint
+            String[] parts = email.split("@");
+            String localPart = parts[0];
+            String domain = parts.length > 1 ? "@" + parts[1] : "@society.local";
+            int sfx = 1;
+            while (userRepository.existsByEmailIgnoreCase(localPart + sfx + domain)) {
+                sfx++;
+            }
+            finalEmail = localPart + sfx + domain;
+        }
+
+        String finalPhone = phone;
+        if (phone != null && userRepository.existsByMobileNumber(phone)) {
+            // Phone already taken — clear it so UK on mobile_number isn't hit
+            finalPhone = null;
+        }
+
         User newUser = new User();
-        newUser.setFullName(req.getPrimaryContactName().trim());
-        newUser.setEmail(email);
-        newUser.setMobileNumber(phone);
-        newUser.setUsername(generateUniqueUsername(req.getPrimaryContactName(), email));
+        newUser.setFullName(req.getPrimaryContactName() != null ? req.getPrimaryContactName().trim() : "Society Admin");
+        newUser.setEmail(finalEmail);
+        newUser.setMobileNumber(finalPhone);
+        newUser.setUsername(generateUniqueUsername(req.getPrimaryContactName(), finalEmail != null ? finalEmail : email));
 
         String rawPassword = (customPassword != null && customPassword.trim().length() >= 6)
                 ? customPassword.trim()
