@@ -2236,6 +2236,11 @@ export interface PlatformService {
     category?: string;
     sendEmail?: boolean;
   }): Promise<void>;
+  sendNotificationToUser(payload: {
+    targetUserId: number;
+    title: string;
+    message: string;
+  }): Promise<void>;
   dispatchCredentials(
     societyId: number,
     payload?: { newPassword?: string; notes?: string },
@@ -2273,6 +2278,15 @@ export const platformService: PlatformService = {
   async sendMessageToAdmin(payload) {
     await withReadableError(
       apiFetch<void>("/platform/messages/send-to-admin", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    );
+  },
+
+  async sendNotificationToUser(payload) {
+    await withReadableError(
+      apiFetch<void>("/platform/notifications/send-to-user", {
         method: "POST",
         body: JSON.stringify(payload),
       }),

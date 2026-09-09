@@ -134,6 +134,16 @@ public class PlatformManagementController {
         return ApiResponse.success(response, response.message());
     }
 
+    @PostMapping("/notifications/send-to-user")
+    public ApiResponse<Void> sendNotificationToUser(
+            Authentication authentication,
+            @Valid @RequestBody PlatformNotificationToUserRequest request
+    ) {
+        User actor = CurrentUser.require(authentication);
+        platformService.sendNotificationToUser(actor, request.targetUserId(), request.title(), request.message());
+        return ApiResponse.success(null, "Notification sent to user successfully");
+    }
+
     @GetMapping("/audit")
     public ApiResponse<List<AuditLogResponse>> getPlatformAudit(
             Authentication authentication,

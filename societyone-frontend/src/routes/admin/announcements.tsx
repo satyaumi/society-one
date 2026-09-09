@@ -2,18 +2,23 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   AlertCircle,
+  Building2,
   Calendar,
   Check,
   CheckCircle2,
   Clock,
   Edit2,
   Eye,
+  Loader2,
+  Mail,
   Megaphone,
   Pin,
   Plus,
   Power,
   PowerOff,
   RefreshCw,
+  Send,
+  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
@@ -26,13 +31,15 @@ import {
   PageIntro,
   SectionHeading,
 } from "@/components/societyone";
-import { notificationService, realtimeEvents } from "@/services";
+import { notificationService, platformService, realtimeEvents } from "@/services";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { useAuth } from "@/lib/auth/auth-store";
 import type {
   Announcement,
   AnnouncementAudience,
   AnnouncementType,
   CreateAnnouncementInput,
+  PlatformSocietyDirectoryItem,
 } from "@/types/domain";
 import {
   AnnouncementDetailsModal,
@@ -110,8 +117,13 @@ const ANNOUNCEMENT_TYPES: { value: AnnouncementType; label: string }[] = [
 const AUDIENCES: { value: AnnouncementAudience; label: string; desc: string }[] = [
   {
     value: "ALL_MEMBERS",
-    label: "All Members",
-    desc: "Visible to all Residents and Security staff in dashboard & notification center",
+    label: "All Societies & Members (Broadcast)",
+    desc: "Broadcasted across all society portals to all Society Admins, Residents, and Security staff",
+  },
+  {
+    value: "PUBLIC",
+    label: "Public Landing Page (Visible to Everyone Worldwide)",
+    desc: "Published on the public landing page for outside visitors AND visible to all residents & admins on their dashboards",
   },
   {
     value: "RESIDENTS",
@@ -123,14 +135,12 @@ const AUDIENCES: { value: AnnouncementAudience; label: string; desc: string }[] 
     label: "Security Staff",
     desc: "Visible only to on-duty and gate security personnel",
   },
-  {
-    value: "PUBLIC",
-    label: "Public & Outside Society (Visible to Everyone)",
-    desc: "Published on the public landing page AND visible to all Residents, Security, and Admin on their dashboards",
-  },
 ];
 
 function AdminAnnouncementsPage() {
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === "PLATFORM_ADMIN";
+
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -139,6 +149,29 @@ function AdminAnnouncementsPage() {
   const [editingItem, setEditingItem] = useState<Announcement | null>(null);
   const [viewingItem, setViewingItem] = useState<Announcement | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Individual Society Admin Notice Modal (for Platform Admin / Boss)
+  const [adminNoticeModal, setAdminNoticeModal] = useState<{
+    open: boolean;
+    societies: PlatformSocietyDirectoryItem[];
+    selectedSocietyId: number | null;
+    category: string;
+    subject: string;
+    message: string;
+    sendEmail: boolean;
+    loading: boolean;
+    error: string | null;
+  }>({
+    open: false,
+    societies: [],
+    selectedSocietyId: null,
+    category: "DUES_PENDING",
+    subject: "",
+    message: "",
+    sendEmail: true,
+    loading: false,
+    error: null,
+  });
 
   // Filters
   const [filterAudience, setFilterAudience] = useState<string>("ALL");
@@ -291,6 +324,62 @@ function AdminAnnouncementsPage() {
     }
   };
 
+  const openAdminNoticeModal = async () => {
+    let socList = adminNoticeModal.societies;
+    if (socList.length === 0) {
+      try {
+        socList = await platformService.getSocieties();
+      } catch (err) {
+        console.error("Failed to load societies for notice dispatch:", err);
+      }
+    }
+    const firstSoc = socList[0];
+    const socName = firstSoc?.name || "the society";
+    setAdminNoticeModal({
+      open: true,
+      societies: socList,
+      selectedSocietyId: firstSoc ? firstSoc.id : null,
+      category: "DUES_PENDING",
+      subject: `Notice: Outstanding Maintenance & Dues Pending - ${socName}`,
+      message: `Dear Society Administrator,\n\nThis is an official notice regarding pending platform dues and maintenance reconciliation for ${socName}.\n\nPlease review your account ledger and ensure all pending payments are completed at the earliest.\n\nRegards,\nPlatform Management`,
+      sendEmail: true,
+      loading: false,
+      error: null,
+    });
+  };
+
+  const handleSendAdminNotice = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!adminNoticeModal.selectedSocietyId || !adminNoticeModal.subject.trim() || !adminNoticeModal.message.trim()) {
+      setAdminNoticeModal((prev) => ({
+        ...prev,
+        error: "Please select a society and provide both subject and message content.",
+      }));
+      return;
+    }
+
+    setAdminNoticeModal((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      await platformService.sendMessageToAdmin({
+        societyId: adminNoticeModal.selectedSocietyId,
+        subject: adminNoticeModal.subject.trim(),
+        message: adminNoticeModal.message.trim(),
+        category: adminNoticeModal.category,
+        sendEmail: adminNoticeModal.sendEmail,
+      });
+
+      const soc = adminNoticeModal.societies.find((s) => s.id === adminNoticeModal.selectedSocietyId);
+      setSuccess(`Direct administrative notice dispatched to ${soc?.name || "Society"} Admin successfully.`);
+      setAdminNoticeModal((prev) => ({ ...prev, open: false, loading: false }));
+    } catch (err: any) {
+      setAdminNoticeModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: err?.message || "Failed to dispatch notice to society administrator.",
+      }));
+    }
+  };
+
   const filtered = useMemo(() => {
     return announcements.filter((item) => {
       if (filterAudience !== "ALL" && item.audience !== filterAudience) {
@@ -303,13 +392,17 @@ function AdminAnnouncementsPage() {
   }, [announcements, filterAudience, filterStatus]);
 
   return (
-    <AppShell title="Announcements & Notices" eyebrow="Society Admin">
+    <AppShell title="Announcements & Notices" eyebrow={isPlatformAdmin ? "Platform Management" : "Society Admin"}>
       <PageIntro
-        eyebrow="Communications"
-        title="Society Announcements"
-        description="Broadcast important notices, festivals, maintenance updates, and public news to residents and security staff."
+        eyebrow={isPlatformAdmin ? "Platform Communications" : "Communications"}
+        title={isPlatformAdmin ? "Platform & Society Announcements" : "Society Announcements"}
+        description={
+          isPlatformAdmin
+            ? "Broadcast announcements across all society portals, to all society admins and residents, publish to public landing page, or dispatch direct notices to individual admins."
+            : "Broadcast important notices, festivals, maintenance updates, and public news to residents and security staff."
+        }
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -318,6 +411,17 @@ function AdminAnnouncementsPage() {
             >
               <RefreshCw className={cn("size-4 mr-1.5", loading && "animate-spin")} /> Refresh
             </Button>
+            {isPlatformAdmin && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-primary/40 text-primary hover:bg-primary/10 gap-1.5"
+                onClick={() => void openAdminNoticeModal()}
+                title="Send individual administrative notice or dues reminder to a specific society admin"
+              >
+                <Send className="size-4" /> Notice to Society Admin
+              </Button>
+            )}
             <Button
               size="sm"
               className="bg-brand-blue hover:bg-brand-blue/90"
@@ -863,6 +967,236 @@ function AdminAnnouncementsPage() {
           announcement={viewingItem}
           onClose={() => setViewingItem(null)}
         />
+      )}
+
+      {/* Individual Society Admin Notice Modal (Platform Admin only) */}
+      {adminNoticeModal.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setAdminNoticeModal((prev) => ({ ...prev, open: false }))}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl transition-all max-h-[90vh] overflow-y-auto space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <div className="rounded-xl bg-primary/10 p-2 text-primary">
+                  <ShieldCheck className="size-5" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-foreground">
+                    Notice to Society Admin
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Dispatch an administrative notice, dues alert, or maintenance reminder
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 rounded-full"
+                onClick={() => setAdminNoticeModal((prev) => ({ ...prev, open: false }))}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+
+            {adminNoticeModal.error && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                <div className="font-medium flex-1">{adminNoticeModal.error}</div>
+              </div>
+            )}
+
+            <form onSubmit={(e) => void handleSendAdminNotice(e)} className="space-y-4 text-xs">
+              {/* Target Society Selector */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                  Target Society & Admin *
+                </label>
+                <select
+                  value={adminNoticeModal.selectedSocietyId ?? ""}
+                  onChange={(e) => {
+                    const socId = Number(e.target.value);
+                    const soc = adminNoticeModal.societies.find((s) => s.id === socId);
+                    const socName = soc?.name || "the society";
+                    setAdminNoticeModal((prev) => {
+                      let newSub = prev.subject;
+                      let newMsg = prev.message;
+                      if (prev.category === "DUES_PENDING") {
+                        newSub = `Notice: Outstanding Maintenance & Dues Pending - ${socName}`;
+                        newMsg = `Dear Society Administrator,\n\nThis is an official notice regarding pending platform dues and maintenance reconciliation for ${socName}.\n\nPlease review your account ledger and ensure all pending payments are completed at the earliest.\n\nRegards,\nPlatform Management`;
+                      } else if (prev.category === "MAINTENANCE_PENDING") {
+                        newSub = `Urgent: Maintenance Review & Pending Action Required - ${socName}`;
+                        newMsg = `Dear Society Administrator,\n\nWe noticed that pending maintenance reports and facility tasks for ${socName} are awaiting administrative review and sign-off.\n\nPlease log in to your society portal and address the pending items at the earliest.\n\nRegards,\nPlatform Management`;
+                      }
+                      return { ...prev, selectedSocietyId: socId, subject: newSub, message: newMsg };
+                    });
+                  }}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
+                >
+                  {adminNoticeModal.societies.length === 0 && (
+                    <option value="">No societies found</option>
+                  )}
+                  {adminNoticeModal.societies.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} (Admin: {s.adminFullName || "Unassigned"}{s.adminEmail ? ` - ${s.adminEmail}` : ""})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                  Notification Category *
+                </label>
+                <select
+                  value={adminNoticeModal.category}
+                  onChange={(e) => {
+                    const cat = e.target.value;
+                    const soc = adminNoticeModal.societies.find((s) => s.id === adminNoticeModal.selectedSocietyId);
+                    const socName = soc?.name || "your society";
+                    setAdminNoticeModal((prev) => {
+                      let newSub = prev.subject;
+                      let newMsg = prev.message;
+                      if (cat === "DUES_PENDING") {
+                        newSub = `Notice: Outstanding Maintenance & Dues Pending - ${socName}`;
+                        newMsg = `Dear Society Administrator,\n\nThis is an official notice regarding pending platform dues and maintenance reconciliation for ${socName}.\n\nPlease review your account ledger and ensure all pending payments are completed at the earliest.\n\nRegards,\nPlatform Management`;
+                      } else if (cat === "MAINTENANCE_PENDING") {
+                        newSub = `Urgent: Maintenance Review & Pending Action Required - ${socName}`;
+                        newMsg = `Dear Society Administrator,\n\nWe noticed that pending maintenance reports and facility tasks for ${socName} are awaiting administrative review and sign-off.\n\nPlease log in to your society portal and address the pending items at the earliest.\n\nRegards,\nPlatform Management`;
+                      }
+                      return { ...prev, category: cat, subject: newSub, message: newMsg };
+                    });
+                  }}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="DUES_PENDING">⚠️ Outstanding Dues & Maintenance Pending</option>
+                  <option value="MAINTENANCE_PENDING">🔧 Maintenance Service & Inspection Notice</option>
+                  <option value="GENERAL_MESSAGE">📢 General Advisory / Official Notice</option>
+                  <option value="PAYMENT_UPDATE">💳 Billing / Subscription / Payment Update</option>
+                  <option value="SECURITY_ALERT">🚨 Security Alert / Incident Briefing</option>
+                  <option value="PLATFORM_UPDATE">📋 Platform Update / Compliance Notice</option>
+                </select>
+              </div>
+
+              {/* Quick Template Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[11px] text-muted-foreground">Quick Templates:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const soc = adminNoticeModal.societies.find((s) => s.id === adminNoticeModal.selectedSocietyId);
+                    const socName = soc?.name || "your society";
+                    setAdminNoticeModal((prev) => ({
+                      ...prev,
+                      category: "DUES_PENDING",
+                      subject: `Notice: Outstanding Maintenance & Dues Pending - ${socName}`,
+                      message: `Dear Society Administrator,\n\nThis is an official notice regarding pending platform dues and maintenance reconciliation for ${socName}.\n\nPlease review your account ledger and ensure all pending payments are completed at the earliest.\n\nRegards,\nPlatform Management`,
+                    }));
+                  }}
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                >
+                  ⚠️ Dues Pending
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const soc = adminNoticeModal.societies.find((s) => s.id === adminNoticeModal.selectedSocietyId);
+                    const socName = soc?.name || "your society";
+                    setAdminNoticeModal((prev) => ({
+                      ...prev,
+                      category: "MAINTENANCE_PENDING",
+                      subject: `Urgent: Maintenance Review & Pending Action Required - ${socName}`,
+                      message: `Dear Society Administrator,\n\nWe noticed that pending maintenance reports and facility tasks for ${socName} are awaiting administrative review and sign-off.\n\nPlease log in to your society portal and address the pending items at the earliest.\n\nRegards,\nPlatform Management`,
+                    }));
+                  }}
+                  className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+                >
+                  🔧 Maintenance Pending
+                </button>
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                  Subject Line *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Notice: Outstanding Dues & Maintenance Pending"
+                  value={adminNoticeModal.subject}
+                  onChange={(e) => setAdminNoticeModal((prev) => ({ ...prev, subject: e.target.value }))}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              {/* Message */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                  Message Content *
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  placeholder="Write your direct administrative communication..."
+                  value={adminNoticeModal.message}
+                  onChange={(e) => setAdminNoticeModal((prev) => ({ ...prev, message: e.target.value }))}
+                  className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              {/* Email Checkbox */}
+              <label className="flex items-center gap-2 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={adminNoticeModal.sendEmail}
+                  onChange={(e) => setAdminNoticeModal((prev) => ({ ...prev, sendEmail: e.target.checked }))}
+                  className="rounded border-border size-4 accent-primary"
+                />
+                <span className="text-xs font-medium">
+                  Also dispatch high-priority email notification to Admin's registered email
+                </span>
+              </label>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAdminNoticeModal((prev) => ({ ...prev, open: false }))}
+                  disabled={adminNoticeModal.loading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={adminNoticeModal.loading}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
+                >
+                  {adminNoticeModal.loading ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin mr-1" /> Dispatching...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="size-3.5" /> Dispatch Notice
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </AppShell>
   );

@@ -1193,14 +1193,66 @@ function PlatformManagementPage() {
                   <Label className="text-xs">Notification Category *</Label>
                   <select
                     value={messageModal.category}
-                    onChange={(e) => setMessageModal((prev) => ({ ...prev, category: e.target.value }))}
+                    onChange={(e) => {
+                      const cat = e.target.value;
+                      setMessageModal((prev) => {
+                        let newSub = prev.subject;
+                        let newMsg = prev.message;
+                        const socName = prev.society?.name || "your society";
+                        if (cat === "DUES_PENDING") {
+                          newSub = `Notice: Outstanding Dues & Maintenance Pending - ${socName}`;
+                          newMsg = `Dear Society Administrator,\n\nThis is an official notice regarding outstanding platform dues and maintenance reconciliation pending for ${socName}.\n\nPlease review your account ledger and ensure all pending payments are cleared promptly to avoid service disruption.\n\nRegards,\nPlatform Management`;
+                        } else if (cat === "MAINTENANCE_PENDING") {
+                          newSub = `Urgent: Maintenance Review & Pending Action Required - ${socName}`;
+                          newMsg = `Dear Society Administrator,\n\nWe noticed that pending maintenance reports and facility tasks for ${socName} are awaiting administrative review and sign-off.\n\nPlease log in to your society portal and address the pending items at the earliest.\n\nRegards,\nPlatform Management`;
+                        }
+                        return { ...prev, category: cat, subject: newSub, message: newMsg };
+                      });
+                    }}
                     className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
                   >
-                    <option value="GENERAL_MESSAGE">General Advisory / Official Notice</option>
-                    <option value="PAYMENT_UPDATE">Billing / Subscription / Payment Update</option>
-                    <option value="SECURITY_ALERT">Security Alert / Incident Briefing</option>
-                    <option value="PLATFORM_UPDATE">Platform Update / Compliance Notice</option>
+                    <option value="GENERAL_MESSAGE">📢 General Advisory / Official Notice</option>
+                    <option value="DUES_PENDING">⚠️ Outstanding Dues & Maintenance Pending</option>
+                    <option value="MAINTENANCE_PENDING">🔧 Maintenance Service & Inspection Notice</option>
+                    <option value="PAYMENT_UPDATE">💳 Billing / Subscription / Payment Update</option>
+                    <option value="SECURITY_ALERT">🚨 Security Alert / Incident Briefing</option>
+                    <option value="PLATFORM_UPDATE">📋 Platform Update / Compliance Notice</option>
                   </select>
+                </div>
+
+                {/* Quick Templates Bar */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[11px] text-muted-foreground">Quick Templates:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const socName = messageModal.society?.name || "your society";
+                      setMessageModal((prev) => ({
+                        ...prev,
+                        category: "DUES_PENDING",
+                        subject: `Notice: Outstanding Dues & Maintenance Pending - ${socName}`,
+                        message: `Dear Society Administrator,\n\nThis is an official notice regarding outstanding platform dues and maintenance reconciliation pending for ${socName}.\n\nPlease review your account ledger and ensure all pending payments are cleared promptly to avoid service disruption.\n\nRegards,\nPlatform Management`,
+                      }));
+                    }}
+                    className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                  >
+                    ⚠️ Dues Pending
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const socName = messageModal.society?.name || "your society";
+                      setMessageModal((prev) => ({
+                        ...prev,
+                        category: "MAINTENANCE_PENDING",
+                        subject: `Urgent: Maintenance Review & Pending Action Required - ${socName}`,
+                        message: `Dear Society Administrator,\n\nWe noticed that pending maintenance reports and facility tasks for ${socName} are awaiting administrative review and sign-off.\n\nPlease log in to your society portal and address the pending items at the earliest.\n\nRegards,\nPlatform Management`,
+                      }));
+                    }}
+                    className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+                  >
+                    🔧 Maintenance Pending
+                  </button>
                 </div>
 
                 <div>

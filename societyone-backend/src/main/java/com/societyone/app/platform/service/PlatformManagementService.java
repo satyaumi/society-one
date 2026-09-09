@@ -295,6 +295,39 @@ public class PlatformManagementService {
         );
     }
 
+    @Transactional
+    public void sendNotificationToUser(User actor, Long targetUserId, String title, String message) {
+        requirePlatformAdmin(actor);
+
+        User target = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target user not found"));
+
+        // Find their society for context (best-effort)
+        Long societyId = societyRepository.findAll().stream()
+                .filter(s -> s.getOwner() != null && s.getOwner().getId().equals(targetUserId))
+                .findFirst()
+                .map(Society::getId)
+                .orElse(null);
+
+        notificationService.send(
+                targetUserId,
+                societyId,
+                NotificationType.SYSTEM,
+                title.trim(),
+                message.trim(),
+                null
+        );
+
+        auditLogRepository.save(new AuditLog(
+                actor.getId(),
+                societyId,
+                AuditAction.PLATFORM_MESSAGE_SENT,
+                "USER",
+                targetUserId,
+                "Platform notice sent to " + target.getFullName() + " (" + target.getUsername() + "): " + title.trim()
+        ));
+    }
+
     private void requirePlatformAdmin(User actor) {
         if (actor.getRole() != Role.PLATFORM_ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Platform Management access required");

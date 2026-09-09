@@ -283,7 +283,7 @@ public class NotificationService {
 
         // 1. Role-authorized announcements (shows full announcement history for this user)
         Set<AnnouncementAudience> allowedAudiences = getAudiencesForRole(user.getRole());
-        List<Announcement> announcements = user.getRole() == Role.ADMIN
+        List<Announcement> announcements = (user.getRole() == Role.ADMIN || user.getRole() == Role.PLATFORM_ADMIN)
                 ? announcementRepository.findAllByOrderByPinnedDescCreatedAtDesc()
                 : announcementRepository.findByAudiences(allowedAudiences);
 
@@ -408,7 +408,7 @@ public class NotificationService {
 
         // 2. Mark visible announcements read
         Set<AnnouncementAudience> allowedAudiences = getAudiencesForRole(user.getRole());
-        List<Announcement> visibleAnnouncements = user.getRole() == Role.ADMIN
+        List<Announcement> visibleAnnouncements = (user.getRole() == Role.ADMIN || user.getRole() == Role.PLATFORM_ADMIN)
                 ? announcementRepository.findAllByOrderByPinnedDescCreatedAtDesc()
                 : announcementRepository.findByAudiences(allowedAudiences);
 
