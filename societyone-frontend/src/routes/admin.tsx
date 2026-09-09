@@ -114,10 +114,10 @@
 //   );
 // }
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { requireRole } from "@/lib/auth/require-auth";
+import { requireAuth } from "@/lib/auth/require-auth";
 
 export const Route = createFileRoute("/admin")({
-  beforeLoad: () => requireRole(["ADMIN", "PLATFORM_ADMIN"]),
+  beforeLoad: requireAuth,
   component: AdminLayout,
 });
 

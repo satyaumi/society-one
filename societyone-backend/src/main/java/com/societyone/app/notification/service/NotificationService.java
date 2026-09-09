@@ -98,6 +98,13 @@ public class NotificationService {
     @Transactional
     public AnnouncementResponse createAnnouncement(User admin, CreateAnnouncementRequest request) {
         requireAdmin(admin);
+        if (request.audience() == AnnouncementAudience.SOCIETY_ADMINS
+                && admin.getRole() != Role.PLATFORM_ADMIN) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Only Platform Management can broadcast to all Society Admins"
+            );
+        }
 
         Announcement a = new Announcement();
         a.setTitle(request.title().trim());
@@ -125,6 +132,14 @@ public class NotificationService {
 
         Announcement a = announcementRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found"));
+
+        if (request.audience() == AnnouncementAudience.SOCIETY_ADMINS
+                && admin.getRole() != Role.PLATFORM_ADMIN) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Only Platform Management can broadcast to all Society Admins"
+            );
+        }
 
         if (request.title() != null && !request.title().isBlank()) {
             a.setTitle(request.title().trim());
@@ -485,8 +500,16 @@ public class NotificationService {
             return Set.of(AnnouncementAudience.PUBLIC);
         }
         return switch (role) {
-            case PLATFORM_ADMIN, ADMIN -> Set.of(
+            case PLATFORM_ADMIN -> Set.of(
                     AnnouncementAudience.ALL_MEMBERS,
+                    AnnouncementAudience.SOCIETY_ADMINS,
+                    AnnouncementAudience.RESIDENTS,
+                    AnnouncementAudience.SECURITY,
+                    AnnouncementAudience.PUBLIC
+            );
+            case ADMIN -> Set.of(
+                    AnnouncementAudience.ALL_MEMBERS,
+                    AnnouncementAudience.SOCIETY_ADMINS,
                     AnnouncementAudience.RESIDENTS,
                     AnnouncementAudience.SECURITY,
                     AnnouncementAudience.PUBLIC

@@ -2173,7 +2173,7 @@ export const societyRequestService: SocietyRequestService = {
     return await withReadableError(
       apiFetch<SocietyCreationRequest>(`/platform/society-requests/${id}/review`, {
         method: "POST",
-        body: JSON.stringify({ notes }),
+        json: { notes },
       }),
     );
   },
@@ -2184,7 +2184,7 @@ export const societyRequestService: SocietyRequestService = {
         `/platform/society-requests/${id}/request-changes`,
         {
           method: "POST",
-          body: JSON.stringify({ notes }),
+          json: { notes },
         },
       ),
     );
@@ -2194,7 +2194,7 @@ export const societyRequestService: SocietyRequestService = {
     return await withReadableError(
       apiFetch<SocietyCreationRequest>(`/platform/society-requests/${id}/reject`, {
         method: "POST",
-        body: JSON.stringify({ reason }),
+        json: { reason },
       }),
     );
   },
@@ -2205,7 +2205,7 @@ export const societyRequestService: SocietyRequestService = {
         `/platform/society-requests/${id}/approve-and-create`,
         {
           method: "POST",
-          body: JSON.stringify(action || {}),
+          json: action || {},
         },
       ),
     );
@@ -2215,7 +2215,7 @@ export const societyRequestService: SocietyRequestService = {
     await withReadableError(
       apiFetch<void>(`/platform/societies/${societyId}/handover`, {
         method: "POST",
-        body: JSON.stringify(input),
+        json: input,
       }),
     );
   },
@@ -2279,7 +2279,7 @@ export const platformService: PlatformService = {
     await withReadableError(
       apiFetch<void>("/platform/messages/send-to-admin", {
         method: "POST",
-        body: JSON.stringify(payload),
+        json: payload,
       }),
     );
   },
@@ -2288,7 +2288,7 @@ export const platformService: PlatformService = {
     await withReadableError(
       apiFetch<void>("/platform/notifications/send-to-user", {
         method: "POST",
-        body: JSON.stringify(payload),
+        json: payload,
       }),
     );
   },
@@ -2306,7 +2306,7 @@ export const platformService: PlatformService = {
         message: string;
       }>(`/platform/societies/${societyId}/dispatch-credentials`, {
         method: "POST",
-        body: JSON.stringify(payload || {}),
+        json: payload || {},
       }),
     );
   },

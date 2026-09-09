@@ -240,6 +240,17 @@ public class SocietyCreationRequestService {
         SocietyCreationRequest req = requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Application not found"));
 
+        if (req.getStatus() == SocietyRequestStatus.UNDER_REVIEW) {
+            return SocietyCreationRequestResponse.from(req);
+        }
+        if (req.getStatus() != SocietyRequestStatus.SUBMITTED
+                && req.getStatus() != SocietyRequestStatus.CHANGES_REQUESTED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cannot mark as Under Review. Current status: " + req.getStatus()
+            );
+        }
+
         User reviewer = resolveManagedActor(actor);
         req.setStatus(SocietyRequestStatus.UNDER_REVIEW);
         req.setReviewerUser(reviewer);
@@ -265,6 +276,14 @@ public class SocietyCreationRequestService {
         requirePlatformAdmin(actor);
         SocietyCreationRequest req = requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Application not found"));
+
+        if (req.getStatus() != SocietyRequestStatus.SUBMITTED
+                && req.getStatus() != SocietyRequestStatus.UNDER_REVIEW) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cannot request changes. Current status: " + req.getStatus()
+            );
+        }
 
         if (action == null || action.notes() == null || action.notes().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please provide change request notes explaining what details need updating.");
@@ -311,6 +330,15 @@ public class SocietyCreationRequestService {
         requirePlatformAdmin(actor);
         SocietyCreationRequest req = requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Application not found"));
+
+        if (req.getStatus() != SocietyRequestStatus.SUBMITTED
+                && req.getStatus() != SocietyRequestStatus.UNDER_REVIEW
+                && req.getStatus() != SocietyRequestStatus.CHANGES_REQUESTED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cannot reject application. Current status: " + req.getStatus()
+            );
+        }
 
         if (action == null || action.reason() == null || action.reason().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please provide a rejection reason.");
@@ -524,6 +552,7 @@ public class SocietyCreationRequestService {
         }
 
         // Provision new Society Admin user
+        // (either no existing user found, or existing user already owns another society)
         User newUser = new User();
         newUser.setFullName(req.getPrimaryContactName().trim());
         newUser.setEmail(email);

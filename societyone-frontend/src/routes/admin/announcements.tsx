@@ -114,11 +114,17 @@ const ANNOUNCEMENT_TYPES: { value: AnnouncementType; label: string }[] = [
   { value: "OTHER", label: "Other" },
 ];
 
-const AUDIENCES: { value: AnnouncementAudience; label: string; desc: string }[] = [
+const AUDIENCES: { value: AnnouncementAudience; label: string; desc: string; platformOnly?: boolean }[] = [
   {
     value: "ALL_MEMBERS",
     label: "All Societies & Members (Broadcast)",
     desc: "Broadcasted across all society portals to all Society Admins, Residents, and Security staff",
+  },
+  {
+    value: "SOCIETY_ADMINS",
+    label: "Society Admins Only (Platform-level)",
+    desc: "Delivered to every registered Society Administrator inbox across the entire platform (Platform Management only)",
+    platformOnly: true,
   },
   {
     value: "PUBLIC",
@@ -781,7 +787,7 @@ function AdminAnnouncementsPage() {
                     }
                     className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
                   >
-                    {AUDIENCES.map((a) => (
+                    {AUDIENCES.filter((a) => !a.platformOnly || isPlatformAdmin).map((a) => (
                       <option key={a.value} value={a.value}>
                         {a.label}
                       </option>

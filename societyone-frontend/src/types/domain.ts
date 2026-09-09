@@ -158,6 +158,7 @@ export type AnnouncementType =
 
 export type AnnouncementAudience =
   | "ALL_MEMBERS"
+  | "SOCIETY_ADMINS"
   | "RESIDENTS"
   | "SECURITY"
   | "PUBLIC";

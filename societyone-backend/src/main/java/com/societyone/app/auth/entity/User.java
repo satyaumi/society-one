@@ -1,5 +1,6 @@
 package com.societyone.app.auth.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
@@ -111,6 +112,7 @@ public class User {
         this.mobileNumber = mobileNumber;
     }
 
+    @JsonIgnore
     public String getPasswordHash() {
         return passwordHash;
     }

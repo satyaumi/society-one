@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Building2,
   Users,
@@ -20,19 +20,28 @@ import {
   Layers,
   MapPin,
   Mail,
+  Megaphone,
   Phone,
   Calendar,
   Eye,
   KeyRound,
+  Plus,
+  Pin,
+  PowerOff,
+  Edit2,
+  Power,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { AppShell, LoadingState, PageIntro } from "@/components/societyone";
-import { platformService, societyRequestService } from "@/services";
+import { notificationService, platformService, societyRequestService } from "@/services";
 import { requireRole } from "@/lib/auth/require-auth";
 import type {
+  Announcement,
+  AnnouncementAudience,
   AuditEvent,
   PlatformKPIs,
   PlatformSocietyDirectoryItem,
@@ -54,7 +63,7 @@ export const Route = createFileRoute("/platform")({
   component: PlatformManagementPage,
 });
 
-type ActiveTab = "requests" | "societies" | "audit";
+type ActiveTab = "requests" | "societies" | "announcements" | "audit";
 
 function PlatformManagementPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("requests");
@@ -101,6 +110,56 @@ function PlatformManagementPage() {
   });
   const [messageLoading, setMessageLoading] = useState(false);
   const [messageModalError, setMessageModalError] = useState<string | null>(null);
+
+  // Announcements Tab (Platform-level Announcement CRUD)
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+  const [announcementsError, setAnnouncementsError] = useState<string | null>(null);
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
+  const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
+  const [announcementForm, setAnnouncementForm] = useState<{
+    title: string;
+    message: string;
+    type: Announcement["type"];
+    audience: AnnouncementAudience;
+    eventDate: string;
+    eventTime: string;
+    purpose: string;
+    imageUrl: string;
+    active: boolean;
+    pinned: boolean;
+  }>({
+    title: "",
+    message: "",
+    type: "GENERAL_NOTICE",
+    audience: "ALL_MEMBERS",
+    eventDate: "",
+    eventTime: "",
+    purpose: "",
+    imageUrl: "",
+    active: true,
+    pinned: false,
+  });
+
+  const ANNOUNCEMENT_TYPES: { value: Announcement["type"]; label: string }[] = [
+    { value: "GENERAL_NOTICE", label: "General Notice" },
+    { value: "EVENT", label: "Event" },
+    { value: "FESTIVAL", label: "Festival Celebration" },
+    { value: "IMPORTANT_NOTICE", label: "Important Notice" },
+    { value: "MAINTENANCE", label: "Maintenance Work" },
+    { value: "SECURITY_ALERT", label: "Security Alert" },
+    { value: "DELIVERY", label: "Delivery / Parcel Update" },
+    { value: "OTHER", label: "Other" },
+  ];
+
+  const ANNOUNCEMENT_AUDIENCES: { value: AnnouncementAudience; label: string; desc: string }[] = [
+    { value: "ALL_MEMBERS", label: "All Societies & Members (Broadcast)", desc: "Broadcasted across all society portals to all Society Admins, Residents, and Security staff" },
+    { value: "SOCIETY_ADMINS", label: "Society Admins Only (Platform-wide)", desc: "Delivered to every registered Society Administrator inbox across the entire platform" },
+    { value: "PUBLIC", label: "Public Landing Page (Everyone)", desc: "Published on the public landing page for outside visitors AND visible to all residents & admins on their dashboards" },
+    { value: "RESIDENTS", label: "Residents Only", desc: "Visible only to verified flat residents of societies" },
+    { value: "SECURITY", label: "Security Staff", desc: "Visible only to on-duty and gate security personnel" },
+  ];
 
   // Admin Credentials Modal
   const [credentialsModal, setCredentialsModal] = useState<{
@@ -315,6 +374,135 @@ function PlatformManagementPage() {
     }
   }
 
+  // =========================================================================
+  // Announcements Management (Platform Admin / Boss)
+  // =========================================================================
+
+  async function loadAnnouncements() {
+    try {
+      setAnnouncementsLoading(true);
+      setAnnouncementsError(null);
+      const data = await notificationService.listAdminAnnouncements();
+      setAnnouncements(data);
+    } catch (err) {
+      setAnnouncementsError(err instanceof Error ? err.message : "Failed to load announcements");
+    } finally {
+      setAnnouncementsLoading(false);
+    }
+  }
+
+  function resetAnnouncementForm() {
+    setAnnouncementForm({
+      title: "",
+      message: "",
+      type: "GENERAL_NOTICE",
+      audience: "ALL_MEMBERS",
+      eventDate: "",
+      eventTime: "",
+      purpose: "",
+      imageUrl: "",
+      active: true,
+      pinned: false,
+    });
+    setEditingAnnouncement(null);
+    setShowAnnouncementModal(false);
+    setAnnouncementsError(null);
+  }
+
+  function openCreateAnnouncement() {
+    resetAnnouncementForm();
+    setShowAnnouncementModal(true);
+  }
+
+  function openEditAnnouncement(a: Announcement) {
+    setEditingAnnouncement(a);
+    setAnnouncementForm({
+      title: a.title,
+      message: a.message,
+      type: a.type,
+      audience: a.audience,
+      eventDate: a.eventDate || "",
+      eventTime: a.eventTime || "",
+      purpose: a.purpose || "",
+      imageUrl: a.imageUrl || "",
+      active: a.active,
+      pinned: a.pinned,
+    });
+    setShowAnnouncementModal(true);
+  }
+
+  async function handleSaveAnnouncement(e: React.FormEvent) {
+    e.preventDefault();
+    if (!announcementForm.title.trim() || !announcementForm.message.trim()) {
+      setAnnouncementsError("Title and message are required.");
+      return;
+    }
+
+    setAnnouncementSubmitting(true);
+    setAnnouncementsError(null);
+    try {
+      const payload = {
+        title: announcementForm.title.trim(),
+        message: announcementForm.message.trim(),
+        type: announcementForm.type,
+        audience: announcementForm.audience,
+        eventDate: announcementForm.eventDate || undefined,
+        eventTime: announcementForm.eventTime || undefined,
+        purpose: announcementForm.purpose || undefined,
+        imageUrl: announcementForm.imageUrl || undefined,
+        active: announcementForm.active,
+        pinned: announcementForm.pinned,
+      };
+      if (editingAnnouncement) {
+        const updated = await notificationService.updateAnnouncement(editingAnnouncement.id, payload);
+        setAnnouncements((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+        setSuccess(`Announcement "${updated.title}" updated.`);
+      } else {
+        const created = await notificationService.createAnnouncement(payload);
+        setAnnouncements((prev) => [created, ...prev]);
+        setSuccess(`Announcement "${created.title}" published.`);
+      }
+      resetAnnouncementForm();
+      void loadAnnouncements();
+    } catch (err) {
+      setAnnouncementsError(err instanceof Error ? err.message : "Failed to save announcement");
+    } finally {
+      setAnnouncementSubmitting(false);
+    }
+  }
+
+  async function handleToggleAnnouncementActive(id: number) {
+    try {
+      const updated = await notificationService.toggleActiveAnnouncement(id);
+      setAnnouncements((prev) => prev.map((x) => (x.id === id ? updated : x)));
+    } catch (err) {
+      setAnnouncementsError(err instanceof Error ? err.message : "Failed to toggle announcement");
+    }
+  }
+
+  async function handleDeleteAnnouncement(id: number) {
+    if (!confirm("Delete this announcement permanently?")) return;
+    try {
+      await notificationService.deleteAnnouncement(id);
+      setAnnouncements((prev) => prev.filter((x) => x.id !== id));
+      setSuccess("Announcement deleted.");
+    } catch (err) {
+      setAnnouncementsError(err instanceof Error ? err.message : "Failed to delete announcement");
+    }
+  }
+
+  function openMessageSpecificSocietyAdmin(society: PlatformSocietyDirectoryItem | null = null) {
+    setMessageModal({
+      open: true,
+      society,
+      subject: "",
+      message: "",
+      category: "GENERAL_MESSAGE",
+      sendEmail: true,
+    });
+    setMessageModalError(null);
+  }
+
   // Dispatch / Manage Admin Credentials
   async function handleDispatchCredentials() {
     if (!credentialsModal.society) return;
@@ -517,6 +705,21 @@ function PlatformManagementPage() {
           >
             <Building2 className="size-4" />
             Society Directory ({societies.length})
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("announcements");
+              void loadAnnouncements();
+            }}
+            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors ${
+              activeTab === "announcements"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Megaphone className="size-4" />
+            Announcements
           </button>
 
           <button
@@ -897,6 +1100,138 @@ function PlatformManagementPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 4: Platform Announcements */}
+        {activeTab === "announcements" && (
+          <div className="space-y-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  Publish platform-wide notices, festival announcements, and administrative broadcasts that reach all societies, selected audiences, or only Society Admins.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={() => openMessageSpecificSocietyAdmin()}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                >
+                  <Mail className="size-4" /> Send to Specific Society Admin
+                </Button>
+                <Button
+                  onClick={openCreateAnnouncement}
+                  size="sm"
+                  className="gap-1.5"
+                >
+                  <Plus className="size-4" /> New Announcement
+                </Button>
+              </div>
+            </div>
+
+            {announcementsError && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                <div className="font-medium flex-1">{announcementsError}</div>
+              </div>
+            )}
+
+            <div className="grid gap-4">
+              {announcementsLoading ? (
+                <div className="rounded-2xl border border-dashed border-border p-12 text-center">
+                  <Loader2 className="mx-auto size-8 animate-spin text-primary" />
+                  <p className="mt-3 text-sm text-muted-foreground">Loading announcements…</p>
+                </div>
+              ) : announcements.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border p-12 text-center">
+                  <Megaphone className="mx-auto size-12 text-muted-foreground/50" />
+                  <h3 className="mt-4 text-base font-semibold">No platform announcements yet</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Create your first broadcast to reach residents, security staff, or society admins across all societies.
+                  </p>
+                  <div className="mt-5 flex justify-center gap-2">
+                    <Button onClick={openCreateAnnouncement} size="sm">
+                      <Plus className="size-4" /> Publish Notice
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                announcements.map((a) => {
+                  const audMeta = ANNOUNCEMENT_AUDIENCES.find((x) => x.value === a.audience);
+                  return (
+                    <div
+                      key={a.id}
+                      className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-3"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {a.pinned && (
+                              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                                <Pin className="size-3 mr-1 inline" /> Pinned
+                              </Badge>
+                            )}
+                            {a.active ? (
+                              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+                                <CheckCircle2 className="size-3 mr-1 inline" /> Active
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">
+                                <PowerOff className="size-3 mr-1 inline" /> Disabled
+                              </Badge>
+                            )}
+                            <Badge variant="outline">
+                              <Megaphone className="size-3 mr-1 inline" /> {audMeta?.label || a.audience}
+                            </Badge>
+                            <Badge variant="secondary">
+                              {ANNOUNCEMENT_TYPES.find((t) => t.value === a.type)?.label || a.type}
+                            </Badge>
+                          </div>
+                          <h4 className="text-lg font-bold font-display leading-snug">{a.title}</h4>
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-3">{a.message}</p>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground pt-1">
+                            {a.createdByName && <span>By <strong className="text-foreground">{a.createdByName}</strong></span>}
+                            {a.eventDate && (
+                              <span className="inline-flex items-center gap-1">
+                                <Calendar className="size-3" /> {a.eventDate}{a.eventTime ? ` · ${a.eventTime}` : ""}
+                              </span>
+                            )}
+                            {a.readCount !== undefined && a.readCount >= 0 && (
+                              <span className="inline-flex items-center">
+                                <Eye className="size-3 mr-1 inline" /> {a.readCount} reads
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap sm:flex-col sm:items-end gap-1.5 shrink-0">
+                          <Button size="sm" variant="outline" onClick={() => openEditAnnouncement(a)}>
+                            <Edit2 className="size-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void handleToggleAnnouncementActive(a.id)}
+                            className={a.active ? "text-amber-700" : "text-emerald-700"}
+                          >
+                            {a.active ? <Power className="size-3.5" /> : <Power className="size-3.5" />}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void handleDeleteAnnouncement(a.id)}
+                            className="text-rose-700"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
 

@@ -117,10 +117,17 @@ export async function apiFetch<T>(
 
   const token = tokenStore.get();
 
+  const isFormData =
+    typeof FormData !== "undefined" && init.body instanceof FormData;
+
+  const hasJsonPayload =
+    typeof init.json !== "undefined" ||
+    (typeof init.body === "string" && !isFormData);
+
   const headers: Record<string, string> = {
     Accept: "application/json",
 
-    ...(typeof init.json !== "undefined"
+    ...(hasJsonPayload
       ? {
           "Content-Type": "application/json",
         }
