@@ -14,6 +14,7 @@ import com.societyone.app.auth.entity.User;
 import com.societyone.app.auth.repository.UserRepository;
 import com.societyone.app.auth.security.JwtService;
 import com.societyone.app.common.email.EmailService;
+import com.societyone.app.common.util.ContactNormalizationService;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,6 +42,7 @@ public class AuthService {
     private final OtpService otpService;
     private final EmailService emailService;
     private final OtpDeliveryService otpDeliveryService;
+    private final ContactNormalizationService contactNormalizationService;
 
     public AuthService(
             UserRepository userRepository,
@@ -48,7 +50,8 @@ public class AuthService {
             JwtService jwtService,
             OtpService otpService,
             EmailService emailService,
-            OtpDeliveryService otpDeliveryService
+            OtpDeliveryService otpDeliveryService,
+            ContactNormalizationService contactNormalizationService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -56,6 +59,7 @@ public class AuthService {
         this.otpService = otpService;
         this.emailService = emailService;
         this.otpDeliveryService = otpDeliveryService;
+        this.contactNormalizationService = contactNormalizationService;
     }
 
     // -------------------------- Public signup --------------------------
@@ -63,8 +67,8 @@ public class AuthService {
     public AuthResponse signup(SignupRequest request) {
 
         String username = request.username().trim();
-        String email = normalize(request.email());
-        String mobile = normalizeMobile(request.mobileNumber());
+        String email = contactNormalizationService.normalizeEmail(request.email());
+        String mobile = contactNormalizationService.normalizeMobile(request.mobileNumber());
 
         if (email == null && mobile == null) {
             throw new ResponseStatusException(
@@ -190,8 +194,8 @@ public class AuthService {
         }
 
         String username = request.username().trim();
-        String email = normalize(request.email());
-        String mobile = normalizeMobile(request.mobileNumber());
+        String email = contactNormalizationService.normalizeEmail(request.email());
+        String mobile = contactNormalizationService.normalizeMobile(request.mobileNumber());
 
         if (email == null && mobile == null) {
             throw new ResponseStatusException(
@@ -261,8 +265,8 @@ public class AuthService {
         }
 
         String username = request.username().trim();
-        String email = normalize(request.email());
-        String mobile = normalizeMobile(request.mobileNumber());
+        String email = contactNormalizationService.normalizeEmail(request.email());
+        String mobile = contactNormalizationService.normalizeMobile(request.mobileNumber());
 
         if (email == null && mobile == null) {
             throw new ResponseStatusException(
@@ -333,8 +337,8 @@ public class AuthService {
 
         user.setFullName(request.fullName().trim());
         user.setUsername(request.username().trim());
-        user.setEmail(normalize(request.email()));
-        user.setMobileNumber(normalizeMobile(request.mobileNumber()));
+        user.setEmail(contactNormalizationService.normalizeEmail(request.email()));
+        user.setMobileNumber(contactNormalizationService.normalizeMobile(request.mobileNumber()));
 
         // Never store plaintext password.
         user.setPasswordHash(
@@ -354,22 +358,22 @@ public class AuthService {
         if (mobile == null || mobile.isBlank()) {
             return Optional.empty();
         }
-        String normalized = normalizeMobile(mobile);
-        if (normalized == null || normalized.isBlank()) {
+        String canonical = contactNormalizationService.tryNormalizeMobile(mobile);
+        if (canonical == null || canonical.isBlank()) {
             return Optional.empty();
         }
-        Optional<User> u = userRepository.findByMobileNumber(normalized);
+        Optional<User> u = userRepository.findByMobileNumber(canonical);
         if (u.isPresent()) {
             return u;
         }
-        if (normalized.startsWith("+91") && normalized.length() > 3) {
-            String without91 = normalized.substring(3);
+        if (canonical.startsWith("+91") && canonical.length() > 3) {
+            String without91 = canonical.substring(3);
             u = userRepository.findByMobileNumber(without91);
             if (u.isPresent()) {
                 return u;
             }
-        } else if (!normalized.startsWith("+") && normalized.length() == 10) {
-            u = userRepository.findByMobileNumber("+91" + normalized);
+        } else if (!canonical.startsWith("+") && canonical.length() == 10) {
+            u = userRepository.findByMobileNumber("+91" + canonical);
             if (u.isPresent()) {
                 return u;
             }
@@ -584,7 +588,7 @@ public class AuthService {
         }
 
         if ("SIGNUP_EMAIL".equals(purpose) || "SIGNUP".equals(purpose)) {
-            String email = normalize(identifier);
+            String email = contactNormalizationService.normalizeEmail(identifier);
             if (email == null || !email.contains("@")) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email address is required");
             }
@@ -703,7 +707,7 @@ public class AuthService {
     }
 
     public SafeUserResponse changeEmail(User user, ChangeEmailRequest request) {
-        String newEmail = normalize(request.newEmail());
+        String newEmail = contactNormalizationService.normalizeEmail(request.newEmail());
         if (newEmail != null && !newEmail.equalsIgnoreCase(user.getEmail())) {
             if (userRepository.existsByEmailIgnoreCase(newEmail)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
@@ -719,7 +723,7 @@ public class AuthService {
     }
 
     public SafeUserResponse changeMobile(User user, ChangeMobileRequest request) {
-        String newMobile = normalizeMobile(request.newMobileNumber());
+        String newMobile = contactNormalizationService.normalizeMobile(request.newMobileNumber());
         if (newMobile != null && !newMobile.equals(user.getMobileNumber())) {
             if (userRepository.existsByMobileNumber(newMobile)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Mobile number is already registered");
@@ -797,7 +801,12 @@ public class AuthService {
         String id = identifier.trim();
         User user = userRepository.findByEmailIgnoreCase(id).orElse(null);
         if (user != null) return user;
-        return userRepository.findByMobileNumber(normalizeMobile(id)).orElse(null);
+        String canonical = contactNormalizationService.tryNormalizeMobile(id);
+        if (canonical != null) {
+            user = userRepository.findByMobileNumber(canonical).orElse(null);
+            if (user != null) return user;
+        }
+        return null;
     }
 
     private ResponseStatusException invalidCredentials() {
@@ -817,25 +826,5 @@ public class AuthService {
             else hasSpecial = true;
         }
         return hasUpper && hasLower && hasDigit && hasSpecial;
-    }
-
-    private String normalize(String value) {
-
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-
-        return value
-                .trim()
-                .toLowerCase(Locale.ROOT);
-    }
-
-    private String normalizeMobile(String value) {
-
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-
-        return value.replaceAll("[^0-9+]", "");
     }
 }

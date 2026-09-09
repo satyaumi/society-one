@@ -59,8 +59,13 @@ class SocietyCreationRequestServiceTest {
                 userRepository,
                 passwordEncoder,
                 auditService,
-                emailService
+                emailService,
+                new com.societyone.app.common.util.ContactNormalizationService()
         );
+
+        when(userRepository.findByMobileNumber(any())).thenReturn(Optional.empty());
+        when(societyRepository.existsByOwner(any())).thenReturn(false);
+        when(userRepository.existsByUsernameIgnoreCase(any())).thenReturn(false);
 
         platformAdmin = new User();
         ReflectionTestUtils.setField(platformAdmin, "id", 1L);
@@ -174,5 +179,149 @@ class SocietyCreationRequestServiceTest {
 
         verify(requestRepository).save(req);
         verify(auditService).record(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("DB +919876543210 + application 9876543210 reuses the existing user")
+    void shouldReuseUserWhenApplicationPhoneOmitsCountryCode() {
+        approveReusesExistingMobile("9876543210");
+    }
+
+    @Test
+    @DisplayName("DB +919876543210 + application +91 9876543210 reuses the existing user")
+    void shouldReuseUserWhenApplicationPhoneHasSpaces() {
+        approveReusesExistingMobile("+91 9876543210");
+    }
+
+    @Test
+    @DisplayName("Email case and whitespace are normalized before reuse")
+    void shouldReuseUserWhenEmailHasCaseAndWhitespace() {
+        User existing = storedAdminUser();
+        existing.setEmail("admin@example.com");
+        existing.setMobileNumber("+919876543210");
+
+        SocietyCreationRequest req = pendingRequest("  Admin@Example.COM  ", "9876543211");
+        stubApproveLookups(req);
+        when(userRepository.findByEmailIgnoreCase("admin@example.com")).thenReturn(Optional.of(existing));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.approveAndCreateSociety(platformAdmin, 5L, new SocietyRequestReviewAction("ok", null, "SocAdmin#2026!"));
+
+        verify(userRepository, times(1)).save(existing);
+        verify(userRepository, never()).save(argThat(user -> user != existing && user.getId() == null));
+        assertEquals(Role.ADMIN, existing.getRole());
+    }
+
+    @Test
+    @DisplayName("No matching user creates exactly one new admin")
+    void shouldCreateExactlyOneUserWhenNoneMatch() {
+        SocietyCreationRequest req = pendingRequest("new.admin@example.com", "9876543210");
+        stubApproveLookups(req);
+        when(userRepository.findByEmailIgnoreCase("new.admin@example.com")).thenReturn(Optional.empty());
+        when(userRepository.existsByEmailIgnoreCase("new.admin@example.com")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+            User user = inv.getArgument(0);
+            if (user.getId() == null) {
+                ReflectionTestUtils.setField(user, "id", 77L);
+            }
+            return user;
+        });
+
+        service.approveAndCreateSociety(platformAdmin, 5L, new SocietyRequestReviewAction("ok", null, "SocAdmin#2026!"));
+
+        verify(userRepository, times(1)).save(argThat(user ->
+                "+919876543210".equals(user.getMobileNumber())
+                        && "new.admin@example.com".equals(user.getEmail())
+                        && user.getRole() == Role.ADMIN
+        ));
+    }
+
+    @Test
+    @DisplayName("Invalid phone returns a clear validation error")
+    void shouldRejectInvalidPhoneOnApprove() {
+        SocietyCreationRequest req = pendingRequest("admin@example.com", "not-a-phone");
+        when(requestRepository.findById(5L)).thenReturn(Optional.of(req));
+        when(societyRepository.existsByNameIgnoreCase(any())).thenReturn(false);
+
+        org.springframework.web.server.ResponseStatusException ex = assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> service.approveAndCreateSociety(
+                        platformAdmin,
+                        5L,
+                        new SocietyRequestReviewAction("ok", null, "SocAdmin#2026!")
+                )
+        );
+        assertEquals(400, ex.getStatusCode().value());
+        assertTrue(ex.getReason() != null && ex.getReason().toLowerCase().contains("invalid mobile"));
+        verify(societyRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Successful Society Admin approval does not raise a data-conflict rollback")
+    void shouldApproveWithoutDataConflict() {
+        shouldApproveAndCreateSocietyWithExistingUser();
+    }
+
+    private void approveReusesExistingMobile(String applicationPhone) {
+        User existing = storedAdminUser();
+        existing.setEmail("other@example.com");
+        existing.setMobileNumber("+919876543210");
+
+        SocietyCreationRequest req = pendingRequest("fresh-" + applicationPhone.hashCode() + "@example.com", applicationPhone);
+        stubApproveLookups(req);
+        when(userRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
+        when(userRepository.existsByEmailIgnoreCase(any())).thenReturn(false);
+        when(userRepository.findByMobileNumber("+919876543210")).thenReturn(Optional.of(existing));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SocietyCreationRequestResponse res = service.approveAndCreateSociety(
+                platformAdmin,
+                5L,
+                new SocietyRequestReviewAction("ok", null, "SocAdmin#2026!")
+        );
+
+        assertEquals("SOCIETY_CREATED", res.status());
+        assertEquals(Role.ADMIN, existing.getRole());
+        verify(userRepository, times(1)).save(existing);
+        verify(societyRepository, times(1)).save(any(Society.class));
+    }
+
+    private User storedAdminUser() {
+        User existing = new User();
+        ReflectionTestUtils.setField(existing, "id", 9L);
+        existing.setUsername("existing9");
+        existing.setRole(Role.RESIDENT);
+        existing.setAccountStatus(AccountStatus.ACTIVE);
+        return existing;
+    }
+
+    private SocietyCreationRequest pendingRequest(String email, String phone) {
+        SocietyCreationRequest req = new SocietyCreationRequest();
+        ReflectionTestUtils.setField(req, "id", 5L);
+        req.setReferenceCode("REQ-SOC-PHONE");
+        req.setSocietyName("Dream City");
+        req.setPrimaryContactName("Alice Admin");
+        req.setPrimaryContactEmail(email);
+        req.setPrimaryContactPhone(phone);
+        req.setAddress("1 Lake Road");
+        req.setCity("Bhubaneswar");
+        req.setState("Odisha");
+        req.setPostalCode("751001");
+        req.setNumberOfWings(1);
+        req.setTotalFlats(10);
+        req.setStatus(SocietyRequestStatus.SUBMITTED);
+        return req;
+    }
+
+    private void stubApproveLookups(SocietyCreationRequest req) {
+        when(requestRepository.findById(5L)).thenReturn(Optional.of(req));
+        when(societyRepository.existsByNameIgnoreCase(req.getSocietyName())).thenReturn(false);
+        when(societyRepository.save(any(Society.class))).thenAnswer(inv -> {
+            Society society = inv.getArgument(0);
+            ReflectionTestUtils.setField(society, "id", 101L);
+            return society;
+        });
+        when(buildingRepository.save(any(Building.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(requestRepository.save(any(SocietyCreationRequest.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 }

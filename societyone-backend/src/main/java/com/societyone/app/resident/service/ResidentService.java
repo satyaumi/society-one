@@ -6,6 +6,7 @@ import com.societyone.app.auth.entity.AccountStatus;
 import com.societyone.app.auth.entity.Role;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.auth.repository.UserRepository;
+import com.societyone.app.common.util.ContactNormalizationService;
 import com.societyone.app.notification.entity.NotificationType;
 import com.societyone.app.notification.service.NotificationService;
 import com.societyone.app.resident.dto.*;
@@ -45,6 +46,7 @@ public class ResidentService {
     private final FloorRepository floorRepository;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final ContactNormalizationService contactNormalizationService;
 
     public ResidentService(
             ResidentProfileRepository residentRepository,
@@ -57,7 +59,8 @@ public class ResidentService {
             BuildingRepository buildingRepository,
             FloorRepository floorRepository,
             NotificationService notificationService,
-            AuditService auditService
+            AuditService auditService,
+            ContactNormalizationService contactNormalizationService
     ) {
         this.residentRepository = residentRepository;
         this.userRepository = userRepository;
@@ -70,6 +73,7 @@ public class ResidentService {
         this.floorRepository = floorRepository;
         this.notificationService = notificationService;
         this.auditService = auditService;
+        this.contactNormalizationService = contactNormalizationService;
     }
 
     public ResidentResponse createResident(
@@ -137,8 +141,8 @@ public class ResidentService {
         }
 
         String username = request.username().trim();
-        String mobile = request.mobileNumber().trim();
-        String email = request.email() != null && !request.email().isBlank() ? request.email().trim().toLowerCase() : null;
+        String mobile = contactNormalizationService.normalizeMobile(request.mobileNumber());
+        String email = contactNormalizationService.normalizeEmail(request.email());
 
         User user;
         if (userRepository.existsByUsernameIgnoreCase(username)) {
@@ -150,7 +154,7 @@ public class ResidentService {
             if (email != null && userRepository.existsByEmailIgnoreCase(email)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
             }
-            if (userRepository.existsByMobileNumber(mobile)) {
+            if (mobile != null && userRepository.existsByMobileNumber(mobile)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Mobile number is already registered");
             }
 

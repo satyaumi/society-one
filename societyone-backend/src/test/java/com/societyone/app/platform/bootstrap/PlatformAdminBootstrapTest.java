@@ -29,7 +29,11 @@ class PlatformAdminBootstrapTest {
         passwordEncoder = mock(PasswordEncoder.class);
         when(passwordEncoder.encode(any())).thenAnswer(inv -> "encoded_" + inv.getArgument(0));
 
-        bootstrap = new PlatformAdminBootstrap(userRepository, passwordEncoder);
+        bootstrap = new PlatformAdminBootstrap(
+                userRepository,
+                passwordEncoder,
+                new com.societyone.app.common.util.ContactNormalizationService()
+        );
         ReflectionTestUtils.setField(bootstrap, "adminUsername", "superadmin");
         ReflectionTestUtils.setField(bootstrap, "adminEmail", "thesundar3@gmail.com");
         ReflectionTestUtils.setField(bootstrap, "adminPassword", "SuperAdmin@2026");

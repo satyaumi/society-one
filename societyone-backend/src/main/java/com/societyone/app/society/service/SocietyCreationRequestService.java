@@ -7,6 +7,7 @@ import com.societyone.app.auth.entity.Role;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.auth.repository.UserRepository;
 import com.societyone.app.common.email.EmailService;
+import com.societyone.app.common.util.ContactNormalizationService;
 import com.societyone.app.platform.dto.AdminHandoverRequest;
 import com.societyone.app.platform.dto.SocietyRequestReviewAction;
 import com.societyone.app.society.dto.SocietyCreationRequestResponse;
@@ -49,6 +50,7 @@ public class SocietyCreationRequestService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
     private final EmailService emailService;
+    private final ContactNormalizationService contactNormalizationService;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     public SocietyCreationRequestService(
@@ -58,7 +60,8 @@ public class SocietyCreationRequestService {
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             AuditService auditService,
-            EmailService emailService
+            EmailService emailService,
+            ContactNormalizationService contactNormalizationService
     ) {
         this.requestRepository = requestRepository;
         this.societyRepository = societyRepository;
@@ -67,6 +70,7 @@ public class SocietyCreationRequestService {
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
         this.emailService = emailService;
+        this.contactNormalizationService = contactNormalizationService;
     }
 
     // =========================================================================
@@ -95,17 +99,27 @@ public class SocietyCreationRequestService {
             );
         }
 
+        String canonicalPrimaryEmail = contactNormalizationService.normalizeEmail(request.primaryContactEmail());
+        String canonicalPrimaryPhone = contactNormalizationService.normalizeMobile(request.primaryContactPhone());
+        String canonicalSocietyEmail = contactNormalizationService.normalizeEmail(request.societyOfficialEmail());
+        String canonicalSecondaryPhone = (request.secondaryContactName() != null && !request.secondaryContactName().isBlank())
+                ? contactNormalizationService.normalizeMobile(request.secondaryContactPhone())
+                : null;
+        String canonicalSecondaryEmail = (request.secondaryContactName() != null && !request.secondaryContactName().isBlank())
+                ? contactNormalizationService.normalizeEmail(request.secondaryContactEmail())
+                : null;
+
         SocietyCreationRequest entity = new SocietyCreationRequest();
         entity.setReferenceCode(generateReferenceCode());
         entity.setPrimaryContactName(request.primaryContactName().trim());
-        entity.setPrimaryContactEmail(normalizeEmail(request.primaryContactEmail()));
-        entity.setPrimaryContactPhone(normalizePhone(request.primaryContactPhone()));
-        entity.setSocietyOfficialEmail(normalizeEmail(request.societyOfficialEmail()));
+        entity.setPrimaryContactEmail(canonicalPrimaryEmail);
+        entity.setPrimaryContactPhone(canonicalPrimaryPhone);
+        entity.setSocietyOfficialEmail(canonicalSocietyEmail);
 
         if (request.secondaryContactName() != null && !request.secondaryContactName().isBlank()) {
             entity.setSecondaryContactName(request.secondaryContactName().trim());
-            entity.setSecondaryContactPhone(normalizePhone(request.secondaryContactPhone()));
-            entity.setSecondaryContactEmail(normalizeEmail(request.secondaryContactEmail()));
+            entity.setSecondaryContactPhone(canonicalSecondaryPhone);
+            entity.setSecondaryContactEmail(canonicalSecondaryEmail);
         }
 
         entity.setSocietyName(request.societyName().trim());
@@ -127,10 +141,14 @@ public class SocietyCreationRequestService {
             storeDocument(entity, document);
         }
 
-        // Link existing user if applicant already has an account
-        userRepository.findByEmailIgnoreCase(entity.getPrimaryContactEmail())
-                .or(() -> userRepository.findByMobileNumber(entity.getPrimaryContactPhone()))
-                .ifPresent(entity::setApplicantUser);
+        // Link existing user if applicant already has an account — use canonical values
+        Optional<User> existingByCanonicalEmail = (canonicalPrimaryEmail != null)
+                ? userRepository.findByEmailIgnoreCase(canonicalPrimaryEmail)
+                : Optional.empty();
+        Optional<User> existingByCanonicalPhone = (canonicalPrimaryPhone != null && existingByCanonicalEmail.isEmpty())
+                ? userRepository.findByMobileNumber(canonicalPrimaryPhone)
+                : Optional.empty();
+        existingByCanonicalEmail.or(() -> existingByCanonicalPhone).ifPresent(entity::setApplicantUser);
 
         SocietyCreationRequest saved = requestRepository.save(entity);
 
@@ -188,16 +206,16 @@ public class SocietyCreationRequestService {
             );
         }
 
-        // Update fields
+        // Update fields — use canonical normalization
         req.setPrimaryContactName(request.primaryContactName().trim());
-        req.setPrimaryContactEmail(normalizeEmail(request.primaryContactEmail()));
-        req.setPrimaryContactPhone(normalizePhone(request.primaryContactPhone()));
-        req.setSocietyOfficialEmail(normalizeEmail(request.societyOfficialEmail()));
+        req.setPrimaryContactEmail(contactNormalizationService.normalizeEmail(request.primaryContactEmail()));
+        req.setPrimaryContactPhone(contactNormalizationService.normalizeMobile(request.primaryContactPhone()));
+        req.setSocietyOfficialEmail(contactNormalizationService.normalizeEmail(request.societyOfficialEmail()));
 
         if (request.secondaryContactName() != null && !request.secondaryContactName().isBlank()) {
             req.setSecondaryContactName(request.secondaryContactName().trim());
-            req.setSecondaryContactPhone(normalizePhone(request.secondaryContactPhone()));
-            req.setSecondaryContactEmail(normalizeEmail(request.secondaryContactEmail()));
+            req.setSecondaryContactPhone(contactNormalizationService.normalizeMobile(request.secondaryContactPhone()));
+            req.setSecondaryContactEmail(contactNormalizationService.normalizeEmail(request.secondaryContactEmail()));
         } else {
             req.setSecondaryContactName(null);
             req.setSecondaryContactPhone(null);
@@ -279,10 +297,10 @@ public class SocietyCreationRequestService {
             }
         }
 
-        // 3. Phone lookup
-        String cleanPhone = normalizePhone(cleanQuery);
-        if (cleanPhone != null && cleanPhone.length() >= 7) {
-            List<SocietyCreationRequest> byPhone = requestRepository.findByPrimaryContactPhoneOrderByCreatedAtDesc(cleanPhone);
+        // 3. Phone lookup — normalize first then look up canonically
+        String canonicalPhone = contactNormalizationService.tryNormalizeMobile(cleanQuery);
+        if (canonicalPhone != null && canonicalPhone.length() >= 7) {
+            List<SocietyCreationRequest> byPhone = requestRepository.findByPrimaryContactPhoneOrderByCreatedAtDesc(canonicalPhone);
             if (!byPhone.isEmpty()) {
                 return byPhone.stream().map(SocietyCreationRequestResponse::from).toList();
             }
@@ -515,8 +533,8 @@ public class SocietyCreationRequestService {
         society.setCity(req.getCity() != null ? req.getCity().trim() : "");
         society.setState(req.getState() != null ? req.getState().trim() : "");
         society.setPostalCode(req.getPostalCode() != null ? req.getPostalCode().trim() : "");
-        society.setContactPhone(req.getPrimaryContactPhone());
-        society.setContactEmail(req.getPrimaryContactEmail());
+        society.setContactPhone(contactNormalizationService.tryNormalizeMobile(req.getPrimaryContactPhone()));
+        society.setContactEmail(contactNormalizationService.normalizeEmail(req.getPrimaryContactEmail()));
         society.setStatus(StructureStatus.ACTIVE);
         society.setOwner(adminUser);
 
@@ -637,19 +655,31 @@ public class SocietyCreationRequestService {
     }
 
     private User resolveOrProvisionSocietyAdmin(SocietyCreationRequest req, String customPassword) {
-        String email = normalizeEmail(req.getPrimaryContactEmail());
-        String phone = normalizePhone(req.getPrimaryContactPhone());
+        String canonicalEmail = contactNormalizationService.normalizeEmail(req.getPrimaryContactEmail());
+        String canonicalMobile = contactNormalizationService.normalizeMobile(req.getPrimaryContactPhone());
 
-        // Try to find by email first (case-insensitive), then by phone
-        Optional<User> existingByEmail = (email != null) ? userRepository.findByEmailIgnoreCase(email) : Optional.empty();
-        Optional<User> existingByPhone = (phone != null && existingByEmail.isEmpty())
-                ? userRepository.findByMobileNumber(phone)
+        Optional<User> existingByEmail = (canonicalEmail != null)
+                ? userRepository.findByEmailIgnoreCase(canonicalEmail)
                 : Optional.empty();
 
-        Optional<User> existingUser = existingByEmail.or(() -> existingByPhone);
+        Optional<User> existingByMobile = (canonicalMobile != null)
+                ? findUserByStoredMobile(canonicalMobile)
+                : Optional.empty();
+
+        if (existingByEmail.isPresent() && existingByMobile.isPresent()
+                && !existingByEmail.get().getId().equals(existingByMobile.get().getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This email and mobile number belong to two different users. " +
+                            "Use one existing account, or change the contact details."
+            );
+        }
+
+        Optional<User> existingUser = existingByEmail.or(() -> existingByMobile);
 
         if (existingUser.isPresent()) {
             User user = existingUser.get();
+
             if (user.getRole() != Role.ADMIN && user.getRole() != Role.PLATFORM_ADMIN) {
                 user.setRole(Role.ADMIN);
             }
@@ -657,19 +687,34 @@ public class SocietyCreationRequestService {
                 user.setPasswordHash(passwordEncoder.encode(customPassword.trim()));
             }
             user.setAccountStatus(AccountStatus.ACTIVE);
+
+            if (canonicalMobile != null && !canonicalMobile.equals(user.getMobileNumber())) {
+                if (user.getMobileNumber() == null
+                        || contactNormalizationService.isSameCanonicalMobile(user.getMobileNumber(), canonicalMobile)) {
+                    Optional<User> mobileHolder = findUserByStoredMobile(canonicalMobile);
+                    if (mobileHolder.isPresent() && !mobileHolder.get().getId().equals(user.getId())) {
+                        throw new ResponseStatusException(
+                                HttpStatus.CONFLICT,
+                                "A different user already uses this mobile number."
+                        );
+                    }
+                    user.setMobileNumber(canonicalMobile);
+                }
+            }
+            if (canonicalEmail != null && !canonicalEmail.equalsIgnoreCase(user.getEmail())) {
+                if (user.getEmail() == null
+                        || contactNormalizationService.isSameCanonicalEmail(user.getEmail(), canonicalEmail)) {
+                    user.setEmail(canonicalEmail);
+                }
+            }
+
             return userRepository.save(user);
         }
 
-        // No existing user found — provision a new Society Admin user.
-        // CRITICAL: Before saving, de-duplicate email and phone to avoid DB constraint
-        // violations that would mark the transaction rollback-only (UnexpectedRollbackException).
-        String finalEmail = email;
-        if (email != null && userRepository.existsByEmailIgnoreCase(email)) {
-            // Edge case: found by a different case not caught by findByEmailIgnoreCase
-            // Try to find them again more broadly
-            existingUser = userRepository.findByEmailIgnoreCase(email);
-            if (existingUser.isPresent()) {
-                User user = existingUser.get();
+        if (canonicalEmail != null && userRepository.existsByEmailIgnoreCase(canonicalEmail)) {
+            Optional<User> fallbackUser = userRepository.findByEmailIgnoreCase(canonicalEmail);
+            if (fallbackUser.isPresent()) {
+                User user = fallbackUser.get();
                 if (user.getRole() != Role.ADMIN && user.getRole() != Role.PLATFORM_ADMIN) {
                     user.setRole(Role.ADMIN);
                 }
@@ -679,28 +724,45 @@ public class SocietyCreationRequestService {
                 user.setAccountStatus(AccountStatus.ACTIVE);
                 return userRepository.save(user);
             }
-            // Still can't find by ID — suffix the email to avoid the UK constraint
-            String[] parts = email.split("@");
-            String localPart = parts[0];
-            String domain = parts.length > 1 ? "@" + parts[1] : "@society.local";
-            int sfx = 1;
-            while (userRepository.existsByEmailIgnoreCase(localPart + sfx + domain)) {
-                sfx++;
+        }
+        if (canonicalMobile != null && findUserByStoredMobile(canonicalMobile).isPresent()) {
+            Optional<User> fallbackUser = findUserByStoredMobile(canonicalMobile);
+            if (fallbackUser.isPresent()) {
+                User user = fallbackUser.get();
+                if (user.getRole() != Role.ADMIN && user.getRole() != Role.PLATFORM_ADMIN) {
+                    user.setRole(Role.ADMIN);
+                }
+                if (customPassword != null && customPassword.trim().length() >= 6) {
+                    user.setPasswordHash(passwordEncoder.encode(customPassword.trim()));
+                }
+                user.setAccountStatus(AccountStatus.ACTIVE);
+                return userRepository.save(user);
             }
-            finalEmail = localPart + sfx + domain;
         }
 
-        String finalPhone = phone;
-        if (phone != null && userRepository.existsByMobileNumber(phone)) {
-            // Phone already taken — clear it so UK on mobile_number isn't hit
-            finalPhone = null;
+        String finalEmail = canonicalEmail;
+        if (canonicalEmail != null && userRepository.existsByEmailIgnoreCase(canonicalEmail)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "A user with this email address already exists but could not be linked. " +
+                            "Please log in with the existing account or use a different email."
+            );
+        }
+
+        String finalMobile = canonicalMobile;
+        if (canonicalMobile != null && findUserByStoredMobile(canonicalMobile).isPresent()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "A user with this mobile number already exists but could not be linked. " +
+                            "Please log in with the existing account or use a different mobile number."
+            );
         }
 
         User newUser = new User();
         newUser.setFullName(req.getPrimaryContactName() != null ? req.getPrimaryContactName().trim() : "Society Admin");
         newUser.setEmail(finalEmail);
-        newUser.setMobileNumber(finalPhone);
-        newUser.setUsername(generateUniqueUsername(req.getPrimaryContactName(), finalEmail != null ? finalEmail : email));
+        newUser.setMobileNumber(finalMobile);
+        newUser.setUsername(generateUniqueUsername(req.getPrimaryContactName(), finalEmail != null ? finalEmail : canonicalEmail));
 
         String rawPassword = (customPassword != null && customPassword.trim().length() >= 6)
                 ? customPassword.trim()
@@ -728,17 +790,15 @@ public class SocietyCreationRequestService {
      * is linked to multiple society creation requests.
      */
     private User provisionFreshAdminUser(SocietyCreationRequest req, String customPassword) {
-        String email = req.getPrimaryContactEmail();
-        String phone = req.getPrimaryContactPhone();
+        String canonicalEmail = contactNormalizationService.normalizeEmail(req.getPrimaryContactEmail());
+        String canonicalMobile = contactNormalizationService.normalizeMobile(req.getPrimaryContactPhone());
         String name = req.getPrimaryContactName() != null ? req.getPrimaryContactName().trim() : "Admin";
 
-        // Generate a unique username (always unique)
-        String username = generateUniqueUsername(name, email);
+        String username = generateUniqueUsername(name, canonicalEmail);
 
-        // If the email is already taken, append a numeric suffix to make it unique
-        String finalEmail = email;
-        if (email != null && userRepository.findByEmailIgnoreCase(email).isPresent()) {
-            String[] parts = email.split("@");
+        String finalEmail = canonicalEmail;
+        if (canonicalEmail != null && userRepository.findByEmailIgnoreCase(canonicalEmail).isPresent()) {
+            String[] parts = canonicalEmail.split("@");
             String localPart = parts[0];
             String domain = parts.length > 1 ? "@" + parts[1] : "@society.local";
             int suffix = 1;
@@ -748,10 +808,9 @@ public class SocietyCreationRequestService {
             finalEmail = localPart + suffix + domain;
         }
 
-        // If phone is already taken, use null (phone is optional)
-        String finalPhone = phone;
-        if (phone != null && userRepository.findByMobileNumber(phone).isPresent()) {
-            finalPhone = null;
+        String finalMobile = canonicalMobile;
+        if (canonicalMobile != null && findUserByStoredMobile(canonicalMobile).isPresent()) {
+            finalMobile = null;
         }
 
         String rawPassword = (customPassword != null && customPassword.trim().length() >= 6)
@@ -761,7 +820,7 @@ public class SocietyCreationRequestService {
         User newUser = new User();
         newUser.setFullName(name);
         newUser.setEmail(finalEmail);
-        newUser.setMobileNumber(finalPhone);
+        newUser.setMobileNumber(finalMobile);
         newUser.setUsername(username);
         newUser.setPasswordHash(passwordEncoder.encode(rawPassword));
         newUser.setRole(Role.ADMIN);
@@ -777,6 +836,23 @@ public class SocietyCreationRequestService {
         }
 
         return savedUser;
+    }
+
+    private Optional<User> findUserByStoredMobile(String canonicalMobile) {
+        if (canonicalMobile == null || canonicalMobile.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<User> exact = userRepository.findByMobileNumber(canonicalMobile);
+        if (exact.isPresent()) {
+            return exact;
+        }
+        if (canonicalMobile.startsWith("+91") && canonicalMobile.length() == 13) {
+            String national = canonicalMobile.substring(3);
+            return userRepository.findByMobileNumber(national)
+                    .or(() -> userRepository.findByMobileNumber("91" + national))
+                    .or(() -> userRepository.findByMobileNumber("0" + national));
+        }
+        return Optional.empty();
     }
 
     private String generateUniqueUsername(String fullName, String email) {
@@ -849,16 +925,6 @@ public class SocietyCreationRequestService {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim().replaceAll("\\s+", " ");
-    }
-
-    private String normalizeEmail(String value) {
-        if (value == null || value.isBlank()) return null;
-        return value.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private String normalizePhone(String value) {
-        if (value == null || value.isBlank()) return null;
-        return value.replaceAll("[^0-9+]", "");
     }
 
     private String blankToNull(String value) {

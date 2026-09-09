@@ -4,6 +4,7 @@ import com.societyone.app.auth.entity.AccountStatus;
 import com.societyone.app.auth.entity.Role;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.auth.repository.UserRepository;
+import com.societyone.app.common.util.ContactNormalizationService;
 import com.societyone.app.security.dto.SecurityStaffCreateRequest;
 import com.societyone.app.security.dto.SecurityStaffResponse;
 import com.societyone.app.security.entity.SecurityStaffProfile;
@@ -28,19 +29,22 @@ public class SecurityStaffService {
     private final SocietyRepository societyRepository;
     private final PasswordEncoder passwordEncoder;
     private final com.societyone.app.common.email.EmailService emailService;
+    private final ContactNormalizationService contactNormalizationService;
 
     public SecurityStaffService(
             SecurityStaffProfileRepository staffRepository,
             UserRepository userRepository,
             SocietyRepository societyRepository,
             PasswordEncoder passwordEncoder,
-            com.societyone.app.common.email.EmailService emailService
+            com.societyone.app.common.email.EmailService emailService,
+            ContactNormalizationService contactNormalizationService
     ) {
         this.staffRepository = staffRepository;
         this.userRepository = userRepository;
         this.societyRepository = societyRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
+        this.contactNormalizationService = contactNormalizationService;
     }
 
     public SecurityStaffResponse create(
@@ -57,6 +61,9 @@ public class SecurityStaffService {
             );
         }
 
+        String canonicalEmail = contactNormalizationService.normalizeEmail(request.email());
+        String canonicalMobile = contactNormalizationService.normalizeMobile(request.mobileNumber());
+
         if (userRepository.existsByUsernameIgnoreCase(request.username())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -64,14 +71,14 @@ public class SecurityStaffService {
             );
         }
 
-        if (userRepository.existsByEmailIgnoreCase(request.email())) {
+        if (canonicalEmail != null && userRepository.existsByEmailIgnoreCase(canonicalEmail)) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Email is already registered"
             );
         }
 
-        if (userRepository.existsByMobileNumber(request.mobileNumber())) {
+        if (canonicalMobile != null && userRepository.existsByMobileNumber(canonicalMobile)) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Mobile number is already registered"
@@ -81,8 +88,8 @@ public class SecurityStaffService {
         User user = new User();
         user.setUsername(request.username().trim());
         user.setFullName(request.fullName().trim());
-        user.setEmail(request.email().trim().toLowerCase());
-        user.setMobileNumber(request.mobileNumber().trim());
+        user.setEmail(canonicalEmail);
+        user.setMobileNumber(canonicalMobile);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(Role.SECURITY);
         user.setAccountStatus(AccountStatus.ACTIVE);

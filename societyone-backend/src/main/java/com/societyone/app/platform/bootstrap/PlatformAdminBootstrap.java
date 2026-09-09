@@ -4,6 +4,7 @@ import com.societyone.app.auth.entity.AccountStatus;
 import com.societyone.app.auth.entity.Role;
 import com.societyone.app.auth.entity.User;
 import com.societyone.app.auth.repository.UserRepository;
+import com.societyone.app.common.util.ContactNormalizationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,7 @@ public class PlatformAdminBootstrap {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ContactNormalizationService contactNormalizationService;
 
     @Value("${societyone.platform-admin.username:superadmin}")
     private String adminUsername;
@@ -38,9 +40,10 @@ public class PlatformAdminBootstrap {
     @Value("${societyone.platform-admin.mobile-number:+919999900000}")
     private String adminMobile;
 
-    public PlatformAdminBootstrap(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public PlatformAdminBootstrap(UserRepository userRepository, PasswordEncoder passwordEncoder, ContactNormalizationService contactNormalizationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.contactNormalizationService = contactNormalizationService;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -80,8 +83,8 @@ public class PlatformAdminBootstrap {
         User superAdmin = new User();
         superAdmin.setFullName(adminFullName);
         superAdmin.setUsername(adminUsername.toLowerCase().trim());
-        superAdmin.setEmail(adminEmail.toLowerCase().trim());
-        superAdmin.setMobileNumber(adminMobile);
+        superAdmin.setEmail(contactNormalizationService.normalizeEmail(adminEmail));
+        superAdmin.setMobileNumber(contactNormalizationService.tryNormalizeMobile(adminMobile));
         superAdmin.setPasswordHash(passwordEncoder.encode(adminPassword));
         superAdmin.setRole(Role.PLATFORM_ADMIN);
         superAdmin.setAccountStatus(AccountStatus.ACTIVE);

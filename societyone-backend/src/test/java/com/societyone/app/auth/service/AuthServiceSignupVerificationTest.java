@@ -63,7 +63,8 @@ class AuthServiceSignupVerificationTest {
                 jwtService,
                 otpService,
                 emailService,
-                otpDeliveryService
+                otpDeliveryService,
+                new com.societyone.app.common.util.ContactNormalizationService()
         );
     }
 

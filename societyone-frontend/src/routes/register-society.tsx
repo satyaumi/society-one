@@ -853,12 +853,21 @@ export function RegisterSocietyPage() {
 
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium text-slate-300">Mobile Number *</Label>
-                      <Input
-                        value={formData.primaryContactPhone}
-                        onChange={(e) => updateField("primaryContactPhone", e.target.value)}
-                        placeholder="+91 98765 43210"
-                        className="bg-slate-950/80 border-slate-800 text-white placeholder:text-slate-500 focus:border-cyan-400"
-                      />
+                      <div className="flex items-stretch overflow-hidden rounded-xl border border-slate-800 focus-within:border-cyan-400 transition-colors">
+                        <div className="flex items-center px-3 bg-slate-900/80 text-slate-400 text-sm border-r border-slate-800">
+                          <span className="mr-1">🇮🇳</span>
+                          <span className="font-medium">India (+91)</span>
+                        </div>
+                        <Input
+                          value={formData.primaryContactPhone}
+                          onChange={(e) => updateField("primaryContactPhone", e.target.value)}
+                          placeholder="98765 43210"
+                          className="!border-0 !rounded-none bg-slate-950/80 text-white placeholder:text-slate-500 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500 px-1">
+                        Enter a 10-digit Indian mobile number. Do not add +91; the server stores the canonical form.
+                      </p>
                     </div>
 
                     <div className="space-y-1.5">
@@ -892,12 +901,18 @@ export function RegisterSocietyPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium text-slate-300">Phone Number</Label>
-                      <Input
-                        value={formData.secondaryContactPhone || ""}
-                        onChange={(e) => updateField("secondaryContactPhone", e.target.value)}
-                        placeholder="+91 98765 00000"
-                        className="bg-slate-950/80 border-slate-800 text-white placeholder:text-slate-500 focus:border-cyan-400"
-                      />
+                      <div className="flex items-stretch overflow-hidden rounded-xl border border-slate-800 focus-within:border-cyan-400 transition-colors">
+                        <div className="flex items-center px-3 bg-slate-900/80 text-slate-400 text-sm border-r border-slate-800">
+                          <span className="mr-1">🇮🇳</span>
+                          <span className="font-medium">India (+91)</span>
+                        </div>
+                        <Input
+                          value={formData.secondaryContactPhone || ""}
+                          onChange={(e) => updateField("secondaryContactPhone", e.target.value)}
+                          placeholder="98765 00000"
+                          className="!border-0 !rounded-none bg-slate-950/80 text-white placeholder:text-slate-500 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                        />
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium text-slate-300">Email Address</Label>
